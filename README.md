@@ -66,8 +66,8 @@ player can control Tails with another controller). With *Tails Assist* enabled i
 options, hold **Up** and press **Jump** in mid-air to call Tails; jump into him to grab on, and
 hold Up to fly higher. Save slots remember the choice. Mario plays
 Sonic's route through the game, including the IceCap snowboard ride, where he rides his own
-red snowboard, and the hollow tree in Angel Island Act 1, which he runs up when he reaches it
-at running speed (hold Right to keep climbing).
+red snowboard, and the hollow tree in Angel Island Act 1: walk into it at any speed and it carries
+Mario up around the trunk automatically.
 
 Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
 - **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" (and "Sonic & Tails") choice there play as Mario.

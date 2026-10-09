@@ -105,12 +105,24 @@ function bool Mario.isControlled()
 }
 
 
-// AIZ 1 hollow tree: while Mario runs around the trunk, the game's own physics move him (like Sonic: hold Right to keep climbing)
+// AIZ 1 hollow tree: Mario gets carried up around the trunk automatically, at any speed
 function bool Mario.isOnHollowTree()
 {
 	if (global.zone_act != 0x0000 || (u8[0xffffb000 + 0x2a] & char.flag.ON_OBJECT) == 0)
 		return false
 	return (u32[0xffff0000 + u16[0xffffb000 + 0x42]] == 0x01f752)
+}
+
+
+// On the hollow tree, keep running up at the speed the tree needs, whatever the player does
+function void Mario.keepClimbingHollowTree()
+{
+	if (!mario.active || A0 != 0xffffb000 || !Mario.isOnHollowTree())
+		return
+	if (u8[0xffffb000 + 0x2a] & char.flag.IN_AIR)
+		return
+	char.groundspeed = 0x600
+	char.flags &= ~char.flag.FACING_LEFT
 }
 
 
@@ -122,8 +134,9 @@ function u8 Mario.getHollowTreePhase()
 }
 
 
-// The hollow tree only takes characters running at Sonic's top speed (0x600). Mario's SM64 running speed is
-// lower (depending on the world scale setting), so let it take him when he runs at it.
+// The hollow tree only takes characters running at Sonic's top speed (0x600), and lets them fall off below it.
+// For Mario there's no speed needed: it takes him whenever he's at its entrance (and not moving away),
+// and Mario.keepClimbingHollowTree keeps him going up.
 function void fn01f7ce()
 {
 	u8 bit = (1 << D6.u8)
@@ -131,7 +144,7 @@ function void fn01f7ce()
 	s16 vx = s16[0xffffb000 + 0x18]
 	if (mario.active && A1 == 0xffffb000 && (objA0.flags2a & bit) == 0 && (u8[0xffffb000 + 0x2a] & char.flag.IN_AIR) == 0)
 	{
-		boost = (vx > 0 && vx < 0x600 && mario.fwd >= 22.0f && u8[0xffffb000 + 0x2e] == 0)
+		boost = (vx >= 0 && vx < 0x600 && u8[0xffffb000 + 0x2e] == 0)
 	}
 
 	if (boost)
@@ -369,6 +382,7 @@ function void Character.UpdateNormalState.Sonic()
 			mario.wasControlled = 1
 		}
 		base.Character.UpdateNormalState.Sonic()
+		Mario.keepClimbingHollowTree()
 		return
 	}
 
