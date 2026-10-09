@@ -78,7 +78,7 @@ def progress_bar(done, total):
         sys.stdout.write("\n")
 
 
-def build(rom_path, out_dir, install, voices):
+def build(rom_path, out_dir, install, voices, mods_dir=None):
     print("Reading ROM: %s" % rom_path)
     try:
         rom = romdata.load_rom(rom_path)
@@ -126,14 +126,85 @@ def build(rom_path, out_dir, install, voices):
     print("  Mod zip:    %s" % zip_path)
 
     if install:
-        mods = s3air_mods_folder()
+        mods = choose_mods_folder(mods_dir)
         if mods:
             install_mod(mod_dir, mods)
         else:
-            print("\nCouldn't find the Sonic 3 A.I.R. saved data folder (start the game once first),")
-            print("so copy the 'Mario64' folder or zip into your S3AIR 'mods' folder yourself.")
+            print("\nThe mod was not installed. Copy the 'Mario64' folder or zip from the folder above")
+            print("into your S3AIR 'mods' folder yourself, then enable it in the Mods menu.")
     else:
         print("\nCopy the 'Mario64' folder or zip into your S3AIR 'mods' folder, then enable it in the Mods menu.")
+
+
+SETTINGS_FILE = os.path.join(HERE, "builder_settings.json")
+
+
+def _load_settings():
+    try:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_settings(settings):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=1)
+    except OSError:
+        pass
+
+
+def _clean_path(path):
+    path = path.strip()
+    if path.startswith("& "):
+        path = path[2:].strip()
+    return os.path.expanduser(os.path.expandvars(path.strip('"').strip("'")))
+
+
+def choose_mods_folder(mods_dir=None):
+    """The mods folder to install into: --mods-dir, otherwise the last one chosen or the detected one,
+    which the user can confirm or change. Returns None to skip installing."""
+    if mods_dir:
+        return _clean_path(mods_dir)
+
+    settings = _load_settings()
+    default = settings.get("mods_dir") or s3air_mods_folder()
+    if not sys.stdin.isatty():
+        return default
+
+    print("\nWhere should the mod be installed?")
+    if default:
+        print("  Mods folder: %s" % default)
+        print("Press Enter to use this folder, or drag & drop / type another folder (or 'skip' to not install):")
+    else:
+        print("  The Sonic 3 A.I.R. mods folder was not found automatically.")
+        if sys.platform.startswith("win"):
+            print("  It's usually %APPDATA%\\Sonic3AIR\\mods")
+        print("Drag & drop / type the folder to install into, or press Enter to not install:")
+    try:
+        answer = input("> ")
+    except EOFError:
+        answer = ""
+    answer = _clean_path(answer)
+    if answer.lower() == "skip":
+        return None
+    if not answer:
+        return default
+
+    if not os.path.isdir(answer):
+        try:
+            os.makedirs(answer)
+        except OSError as e:
+            print("Can't use that folder (%s)." % e)
+            return None
+    if os.path.basename(os.path.normpath(answer)).lower() != "mods" and os.path.isdir(os.path.join(answer, "mods")):
+        # The Sonic3AIR folder itself was chosen: use its mods folder
+        answer = os.path.join(answer, "mods")
+    settings["mods_dir"] = os.path.abspath(answer)
+    _save_settings(settings)
+    print("OK, using %s (remembered for next time)." % settings["mods_dir"])
+    return settings["mods_dir"]
 
 
 MOD_IDS = ("mario64-extra-slot", "mario64-sm64-movement")
@@ -277,6 +348,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "output"), help="output folder (default: ./output)")
     ap.add_argument("--no-install", action="store_true", help="don't copy the mod into the S3AIR mods folder")
     ap.add_argument("--no-voices", action="store_true", help="skip the voice clips")
+    ap.add_argument("--mods-dir", help="S3AIR mods folder to install into (default: ask, or the detected one)")
     args = ap.parse_args()
 
     interactive = args.rom is None
@@ -286,7 +358,7 @@ def main():
         fail("No ROM given.")
     try:
         os.makedirs(args.out, exist_ok=True)
-        build(rom_path, args.out, not args.no_install, not args.no_voices)
+        build(rom_path, args.out, not args.no_install, not args.no_voices, args.mods_dir)
     finally:
         if interactive:
             try:

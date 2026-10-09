@@ -22,13 +22,13 @@ Steps:
    - **Windows:** double-click **`Build Mario Mod (Windows).bat`**, or drag your ROM onto it. When asked, drag the ROM into the window and press Enter.
    - **Linux / macOS:** run `./build_mario_mod.sh path/to/SuperMario64.z64`
    
-   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and installs it into your S3AIR `mods` folder. It also activates it, and moves any other copies of the Mario mod (older versions, or a `Mario64.zip` from the web builder) to a `mods_backup_mario64` folder next to the mods folder, so they can't get in the way.
+   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and installs it into your S3AIR `mods` folder. Before installing, it shows the mods folder it found: press Enter to use it, or drag & drop / type a different folder (it remembers your choice; `--mods-dir FOLDER` sets it on the command line). It also activates the mod, and moves any other copies of the Mario mod (older versions, or a `Mario64.zip` from the web builder) to a `mods_backup_mario64` folder next to the mods folder, so they can't get in the way.
 3. Start Sonic 3 A.I.R., open **Mods** in the main menu and enable **Mario 64 (SM64 movement)**.
 
 The built mod is also saved as `output/Mario64.zip`, in case you want to install it by hand
 (see "Where to put mods" in the S3AIR modding docs).
 
-Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--no-install] [--no-voices]`
+Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--mods-dir FOLDER] [--no-install] [--no-voices]`
 
 ## Android
 
@@ -62,7 +62,9 @@ to cycle through the characters. Mario comes after Knuckles (or Knuckles & Tails
 `Sonic & Tails → Sonic → Tails → Knuckles → (Knuckles & Tails) → Mario → Mario & Tails`
 
 **Mario & Tails** works like Sonic & Tails: Tails follows Mario as his sidekick (and a second
-player can control Tails with another controller). Save slots remember the choice. Mario plays
+player can control Tails with another controller). With *Tails Assist* enabled in the game's
+options, hold **Up** and press **Jump** in mid-air to call Tails; jump into him to grab on, and
+hold Up to fly higher. Save slots remember the choice. Mario plays
 Sonic's route through the game, including the IceCap snowboard ride, where he rides his own
 red snowboard.
 

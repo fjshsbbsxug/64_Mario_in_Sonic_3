@@ -1,12 +1,12 @@
 {
 	"Metadata":
 	{
-		"Name": "Mario 64 (SM64 movement) v2.2.0",
-		"DisplayName": "Mario 64 (SM64 movement) v2.2.0",
+		"Name": "Mario 64 (SM64 movement) v2.2.1",
+		"DisplayName": "Mario 64 (SM64 movement) v2.2.1",
 		"UniqueID": "mario64-sm64-movement",
 		"Author": "Mario 64 in Sonic 3 contributors",
 		"Description": "Adds Mario from Super Mario 64 as an extra playable character slot (select him in Data Select, after Knuckles). He moves with a 2D port of Super Mario 64's own movement code: triple jump, backflip, side flip, long jump, wall kick, punches, dive, slide kick, ground pound and swimming.",
-		"ModVersion": "2.2.0.0",
+		"ModVersion": "2.2.1.0",
 		"GameVersion": "24.02.10.0"
 	},
 	"OtherMods":

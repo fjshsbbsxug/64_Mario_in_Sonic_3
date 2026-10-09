@@ -330,7 +330,12 @@ function void Character.UpdateNormalState.Sonic()
 	// Collect button presses for the next tick (SM64 runs at 30 Hz)
 	u8 pressed = Mario.getButtons(true)
 	if (pressed & MARIO_BUTTON_A)
-		mario.pendA = 1
+	{
+		if (Mario.tryTailsAssist())
+			pressed &= ~MARIO_BUTTON_A
+		else
+			mario.pendA = 1
+	}
 	if (pressed & MARIO_BUTTON_B)
 		mario.pendB = 1
 	if (pressed & MARIO_BUTTON_Z)
@@ -405,6 +410,19 @@ function void Character.UpdateSonicRollingInAir()
 		return
 	}
 	Mario.airFrame()
+}
+
+
+// With Tails as partner: Up + Jump in mid-air calls Tails to fly over and carry Mario ("Tails Assist" in the game options).
+// Sonic's mid-air moves are replaced, so this does the same check as Sonic's code. Returns true if Tails starts flying.
+function bool Mario.tryTailsAssist()
+{
+	if ((char.flags & char.flag.IN_AIR) == 0 || (control.player1.state & CONTROL_UP) == 0)
+		return false
+
+	u8 routineBefore = tails.ai_routine
+	onCharacterPressedJumpInMidAir(control.player1.state, control.player1.pressed)
+	return (tails.ai_routine == 0x30 && routineBefore != 0x30)
 }
 
 

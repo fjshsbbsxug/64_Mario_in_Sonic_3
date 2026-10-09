@@ -10,3 +10,5 @@ output/
 dist/
 # APK signing key, created by make_apk.py
 android/*.keystore
+# Remembered builder choices (mods folder)
+builder_settings.json
