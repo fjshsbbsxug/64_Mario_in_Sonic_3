@@ -205,7 +205,10 @@ public class MainActivity extends Activity
 			FileOutputStream out = new FileOutputStream(new File(mods, pendingName));
 			out.write(pendingData);
 			out.close();
-			report(true, "Installed into " + S3AIR_MODS_FOLDER + ". Now enable \"Mario 64\" in the game's Mods menu.");
+			String message = "Installed into " + S3AIR_MODS_FOLDER + ". Now enable \"Mario 64 (SM64 movement)\" in the game's Mods menu.";
+			if (new File(mods, "Mario64").isDirectory())
+				message += "\nAn older version is still in the folder " + S3AIR_MODS_FOLDER + "/Mario64 - delete it, or deactivate \"Mario 64\" in the Mods menu.";
+			report(true, message);
 		}
 		catch (Exception e)
 		{

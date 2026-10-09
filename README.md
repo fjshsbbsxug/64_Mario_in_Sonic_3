@@ -23,7 +23,7 @@ Steps:
    - **Linux / macOS:** run `./build_mario_mod.sh path/to/SuperMario64.z64`
    
    The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and copies it straight into your S3AIR `mods` folder.
-3. Start Sonic 3 A.I.R., open **Mods** in the main menu and enable **Mario 64**.
+3. Start Sonic 3 A.I.R., open **Mods** in the main menu and enable **Mario 64 (SM64 movement)**.
 
 The built mod is also saved as `output/Mario64.zip`, in case you want to install it by hand
 (see "Where to put mods" in the S3AIR modding docs).
@@ -44,7 +44,11 @@ Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--no-inst
    On Android 11 and newer, many file managers can't open `Android/data`. Use one that can
    (e.g. ZArchiver), or copy the file over from a PC via USB.
    On Android 10 and older, the app can do this for you: tap **Install into Sonic 3 A.I.R.**
-6. Start Sonic 3 A.I.R., open **Mods** and enable **Mario 64**.
+6. Start Sonic 3 A.I.R., open **Mods** and enable **Mario 64 (SM64 movement)**.
+
+If Mario still moves like Sonic, an older version of the mod is still installed: delete the old
+`Mario64` folder from the mods folder, or deactivate the mod called just **Mario 64** (versions
+before 2.1 had that name; the game shows a conflict warning when both are active).
 
 The same builder also exists as a single web page, **Mario64-S3AIR-Builder-v….html**. Open it
 in a browser on any device (PC, Android, iPhone/iPad), pick the ROM and download `Mario64.zip`.
@@ -59,7 +63,7 @@ to cycle through the characters. Mario comes after Knuckles (or Knuckles & Tails
 
 Save slots remember Mario. He plays Sonic's route through the game.
 
-Mod settings (**Options → Mods → Mario 64**):
+Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
 - **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" choice there play as Mario.
 - **World scale**: "Sonic 3" (default) scales Mario's movement so he covers ground about as fast as
   Sonic does. "Mario 64" uses Mario's true size relative to the Sonic 3 levels (he is slower and jumps lower).

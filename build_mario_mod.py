@@ -133,7 +133,7 @@ def build(rom_path, out_dir, install, voices):
                 shutil.rmtree(target)
             shutil.copytree(mod_dir, target)
             print("\nInstalled into your Sonic 3 A.I.R. mods folder:\n  %s" % target)
-            print("Start the game, open 'Mods' in the main menu and enable 'Mario 64'.")
+            print("Start the game, open 'Mods' in the main menu and enable 'Mario 64 (SM64 movement)'.")
         else:
             print("\nCouldn't find the Sonic 3 A.I.R. saved data folder (start the game once first),")
             print("so copy the 'Mario64' folder or zip into your S3AIR 'mods' folder yourself.")
