@@ -30,6 +30,26 @@ The built mod is also saved as `output/Mario64.zip`, in case you want to install
 
 Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--no-install] [--no-voices]`
 
+## Android
+
+**Mario64-S3AIR-Builder-v….apk** builds the mod right on your phone, with no PC needed.
+
+1. Install the APK. Your phone will ask you to allow installing apps from your browser or file manager.
+2. Open **Mario 64 Mod Builder**, tap **Choose ROM file** and pick your Super Mario 64 (USA) ROM.
+3. Tap **Build Mario64.zip**. It takes a few seconds up to about a minute, depending on the phone.
+4. Tap **Save Mario64.zip** and save it, e.g. to *Downloads*.
+5. Move `Mario64.zip` into the Sonic 3 A.I.R. mods folder, and leave it zipped:
+   `Android/data/org.eukaryot.sonic3air/files/mods`
+   (start Sonic 3 A.I.R. once first, so the folder exists).
+   On Android 11 and newer, many file managers can't open `Android/data`. Use one that can
+   (e.g. ZArchiver), or copy the file over from a PC via USB.
+   On Android 10 and older, the app can do this for you: tap **Install into Sonic 3 A.I.R.**
+6. Start Sonic 3 A.I.R., open **Mods** and enable **Mario 64**.
+
+The same builder also exists as a single web page, **Mario64-S3AIR-Builder-v….html**. Open it
+in a browser on any device (PC, Android, iPhone/iPad), pick the ROM and download `Mario64.zip`.
+Everything runs offline in the browser, and the ROM is never uploaded.
+
 ## Selecting Mario
 
 In **Normal Game → Data Select**, pick a new save slot (or "No Save") and press **Up/Down**
@@ -88,7 +108,15 @@ Super form.
   - `mario_core.lemon` hooks the actions into the Sonic character object (Mario plays Sonic's route). Sonic 3's own collision code moves him, so he works with loops, slopes, springs, water and all level objects.
   - `mario_render.lemon` draws Mario's sprites instead of Sonic's (via `Standalone.drawCharacterSprite`), and also swaps the HUD lives icon and the results nameplate.
 
-`python make_release.py` packages the builder into `dist/` for a release.
+The Android app and the web page use a JavaScript port of the builder (`web/js/`), which
+produces the same mod:
+- `web/index.html` is the page and `web/js/*.js` mirror the Python modules. Ogg Vorbis encoding uses libvorbis compiled to WebAssembly ([wasm-media-encoders](https://github.com/arseneyr/wasm-media-encoders), MIT license, in `web/vendor/`).
+- `android/` is a small Java app that shows the page in a WebView and provides the ROM file picker, saving, and the direct install on Android 10 and older.
+
+Release packaging:
+- `python make_release.py` packages the Python builder into `dist/`.
+- `python make_web.py` bundles the web builder into one offline HTML file.
+- `python make_apk.py` builds the APK without Gradle. It needs a JDK and `aapt`, `dx`, `zipalign`, `apksigner` and an `android.jar`. On Debian/Ubuntu: `apt install aapt dalvik-exchange zipalign apksigner android-sdk-platform-23`. It signs with `android/release.keystore`, which is created on the first build.
 
 ## Known limitations
 

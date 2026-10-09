@@ -8,3 +8,5 @@ __pycache__/
 *.bin
 output/
 dist/
+# APK signing key, created by make_apk.py
+android/*.keystore
