@@ -450,12 +450,14 @@ M64.model = (function()
 		return { width: W, height: H, data: data };
 	}
 
-	function viewMatrix(yawDeg, pitchDeg)
+	// rollDeg rotates the image counter-clockwise (around the model origin)
+	function viewMatrix(yawDeg, pitchDeg, rollDeg)
 	{
-		const y = yawDeg * Math.PI / 180, p = (pitchDeg || 0) * Math.PI / 180;
+		const y = yawDeg * Math.PI / 180, p = (pitchDeg || 0) * Math.PI / 180, r = (rollDeg || 0) * Math.PI / 180;
 		const ry = Float64Array.of(Math.cos(y), 0, -Math.sin(y), 0, 1, 0, Math.sin(y), 0, Math.cos(y));
 		const rx = Float64Array.of(1, 0, 0, 0, Math.cos(p), Math.sin(p), 0, -Math.sin(p), Math.cos(p));
-		return matMul(ry, rx);
+		const rz = Float64Array.of(Math.cos(r), Math.sin(r), 0, -Math.sin(r), Math.cos(r), 0, 0, 0, 1);
+		return matMul(matMul(ry, rx), rz);
 	}
 
 	return { DL, SKELETON, Model, animNumFrames, poseMatrices, buildSoup, render, viewMatrix };

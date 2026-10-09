@@ -60,6 +60,75 @@ M64.sprites = (function()
 		[0xE3, 0x02, [4], { eyes: "half", lhand: "open", rhand: "open" }],              // hurt
 	];
 
+	// ICZ 1 snowboarding: Mario on a snowboard, one sprite for each of Sonic's snowboarding frames
+	// ("mario_sb_<frame>"). Board angle (degrees, clockwise) and board center relative to the
+	// sprite center follow Sonic's frames, so Mario lines up with the game's animation.
+	// Mario leans with the board by "lean" (0..1). In the trick frames he isn't standing on the
+	// board, so his feet position is given instead.
+	//   [frame, board angle, board x, board y, SM64 animation, lean, feet position or null]
+	const SNOWBOARD = [
+		[0x01, 47, 1, 2, 0x4A, 0.4, null],          // trick frames (in the air)
+		[0x02, 85, -1, 14, 0x4A, 0.0, [0, 15]],
+		[0x03, -48, -2, 11, 0x4A, 0.0, [-3, 10]],
+		[0x04, -53, -1, 15, 0x4A, 0.0, [2, 12]],
+		[0x05, 59, 0, 12, 0x4A, 0.0, [0, 12]],
+		[0x06, 0, -3, 12, 0x47, 1.0, null],         // riding
+		[0x07, -6, -1, 12, 0x47, 1.0, null],
+		[0x08, -11, -2, 11, 0x47, 1.0, null],
+		[0x09, 62, -9, 5, 0x47, 0.4, null],         // steep slopes
+		[0x0A, 38, -6, 6, 0x47, 0.6, null],
+		[0x0B, 8, -2, 10, 0x47, 1.0, null],
+		[0x0C, 22, -2, 9, 0x47, 1.0, null],
+	];
+	const SNOWBOARD_CANVAS = 96;
+	const BOARD_LENGTH = 46;
+	const BOARD_THICKNESS = 4;
+	const BOARD_COLORS = [[248, 96, 72], [200, 24, 24], [40, 24, 56]];		// top, bottom, outline
+
+	// Draws the snowboard (a red capsule) into a supersampled image, behind what's there
+	function drawBoard(hi, cx, cy, angleDeg, ss)
+	{
+		const a = angleDeg * Math.PI / 180;
+		const ux = Math.cos(a), uy = Math.sin(a);
+		const nx = Math.sin(a), ny = -Math.cos(a);		// board's "up"
+		const half = BOARD_LENGTH / 2 - BOARD_THICKNESS / 2;
+		const colors = BOARD_COLORS.map(c => c.map(v => Math.fround(v / 255)));
+		for (let y = 0; y < hi.height; ++y)
+			for (let x = 0; x < hi.width; ++x)
+			{
+				const i = (y * hi.width + x) * 4;
+				if (hi.data[i + 3] !== 0)
+					continue;
+				const px = (x + 0.5) / ss - cx, py = (y + 0.5) / ss - cy;
+				const along = px * ux + py * uy;
+				const across = px * nx + py * ny;
+				const dist = Math.hypot(Math.max(Math.abs(along) - half, 0), across);
+				if (dist > BOARD_THICKNESS / 2)
+					continue;
+				const col = (dist > BOARD_THICKNESS / 2 - 1) ? colors[2] : (across > 0) ? colors[0] : colors[1];
+				hi.data[i] = col[0];
+				hi.data[i + 1] = col[1];
+				hi.data[i + 2] = col[2];
+				hi.data[i + 3] = 1;
+			}
+	}
+
+	function renderSnowboard(model, anims, def)
+	{
+		const [, angle, bx, by, animId, lean, feetPos] = def;
+		const mats = M64.model.poseMatrices(anims[animId], 0);
+		const soup = M64.model.buildSoup(model, mats, "front", "open", "open");
+		const view = M64.model.viewMatrix(YAW, PITCH, -angle * lean);
+		const c = Math.floor(SNOWBOARD_CANVAS / 2);
+		const a = angle * Math.PI / 180;
+		const board = [c + bx, c + by];
+		const feet = feetPos ? [c + feetPos[0], c + feetPos[1]] :
+			[board[0] + Math.sin(a) * BOARD_THICKNESS / 2, board[1] - Math.cos(a) * BOARD_THICKNESS / 2];
+		const hi = M64.model.render(soup, view, [SNOWBOARD_CANVAS, SNOWBOARD_CANVAS], PX_PER_UNIT, feet, LIGHT, SS);
+		drawBoard(hi, board[0], board[1], angle, SS);
+		return { img: downsample(hi, SS), center: [c, c] };
+	}
+
 	function animSpriteFrames(anim, step)
 	{
 		const frames = [];
@@ -330,6 +399,12 @@ M64.sprites = (function()
 				progress(rendered.length, jobs.length);
 				await M64.util.yieldToUI();
 			}
+		}
+
+		for (const def of SNOWBOARD)
+		{
+			const r = renderSnowboard(model, anims, def);
+			rendered.push({ key: "mario_sb_" + hex2(def[0]), img: r.img, center: r.center });
 		}
 
 		const head = renderSprite(model, anims, 0xC5, 0, { yaw: 35, pitch: 5, anchor: 40 }, 0.36, 96).img;

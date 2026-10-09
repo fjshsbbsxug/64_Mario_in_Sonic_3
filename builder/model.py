@@ -325,9 +325,12 @@ def render(soup, view, size, px_per_unit, origin, light_dir, ss=4):
     return np.dstack([color, alpha])
 
 
-def view_matrix(yaw_deg, pitch_deg=0.0):
+def view_matrix(yaw_deg, pitch_deg=0.0, roll_deg=0.0):
+    """roll_deg rotates the image counter-clockwise (around the model origin)."""
     y = math.radians(yaw_deg)
     p = math.radians(pitch_deg)
+    r = math.radians(roll_deg)
     ry = np.array([[math.cos(y), 0, -math.sin(y)], [0, 1, 0], [math.sin(y), 0, math.cos(y)]])
     rx = np.array([[1, 0, 0], [0, math.cos(p), math.sin(p)], [0, -math.sin(p), math.cos(p)]])
-    return ry @ rx
+    rz = np.array([[math.cos(r), math.sin(r), 0], [-math.sin(r), math.cos(r), 0], [0, 0, 1]])
+    return ry @ rx @ rz

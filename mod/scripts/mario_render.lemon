@@ -66,6 +66,10 @@ function u64 Mario.getSpriteKey()
 	if (st == char.state.BREATHE)
 		return Mario.spriteKey(0x50, 2)
 
+	// Rolling down the mountain at the start of ICZ 1
+	if (Mario.isSnowboarding() && st == char.state.ROLLING)
+		return Mario.loopingSpriteKey(0x6f, 1)
+
 	// Mario's own animation
 	u8 anim = mario.anim
 	if ((anim == 0xc3 || anim == 0xc4 || anim == 0xc5) && (level.framecounter & 0x7f) >= 0x7a)
@@ -110,7 +114,7 @@ function void Mario.checkMovementCodeRunning()
 	if (mario.missedUpdates < 90)
 		return
 
-	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.1.3:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.0:", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)
@@ -159,6 +163,25 @@ function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s
 		Renderer.drawCustomSprite(key, px, py, 0, flags, renderQueue, angle, 255)
 	}
 	return true
+}
+
+
+// Mario on the snowboard in ICZ 1 (the game draws the snowboarding character as a separate object)
+function bool Standalone.onWriteToSpriteTable(s16 px, s16 py, u16 renderQueue)
+{
+	if (mario.active && objA0.mapping_offset == 0x347e30)
+	{
+		u64 key = stringformat("mario_sb_%02x", objA0.animation.sprite)
+		if (Renderer.hasCustomSprite(key))
+		{
+			u8 flags = (objA0.sprite_attributes & sprite_attribute.PRIORITY) ? SPRITE_FLAG_PRIO : 0
+			if (objA0.render_flags & render_flag.FLIP_X)
+				flags |= SPRITE_FLAG_FLIP_X
+			Renderer.drawCustomSprite(key, px, py, 0x00, flags, renderQueue)
+			return true
+		}
+	}
+	return base.Standalone.onWriteToSpriteTable(px, py, renderQueue)
 }
 
 

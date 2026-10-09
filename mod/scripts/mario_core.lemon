@@ -12,6 +12,7 @@
 
 
 constant u16 CHARS_MARIO = 5
+constant u16 CHARS_MARIO_AND_TAILS = 6
 
 // Mod settings (see mod.json)
 global u8 mario.option.everywhere		// 1 = Sonic alone gets replaced by Mario in all game modes
@@ -100,7 +101,18 @@ global s16 mario.wallBoostRealGs
 
 function bool Mario.isControlled()
 {
-	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC)
+	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC && !Mario.isSnowboarding())
+}
+
+
+// ICZ 1 snowboarding: the game's own snowboard physics (Sonic's rolling physics) move Mario there,
+// from the start of the intro until the snowboard flies away
+function bool Mario.isSnowboarding()
+{
+	if (global.zone_act != 0x0500)
+		return false
+	u32 boardUpdate = u32[0xffffb172]
+	return (boardUpdate >= 0x0396e4 && boardUpdate <= 0x03984e)
 }
 
 // Float to integer, rounding towards zero like in C
@@ -233,19 +245,21 @@ function bool Mario.onFloorQuadrant()
 function void SetGlobalCharacters()
 {
 	u16 selection = levelselect.characters
-	bool wantMario = (selection == CHARS_MARIO)
-	if (mario.option.everywhere && selection == CHARS_SONIC_ALONE)
+	bool wantMario = (selection == CHARS_MARIO || selection == CHARS_MARIO_AND_TAILS)
+	if (mario.option.everywhere && (selection == CHARS_SONIC_ALONE || selection == CHARS_SONIC_AND_TAILS))
 		wantMario = true
 
-	// Base implementation does not know about Mario, so let it set up Sonic alone
+	// Base implementation does not know about Mario, so let it set up Sonic alone or Sonic & Tails
 	if (selection == CHARS_MARIO)
 		levelselect.characters = CHARS_SONIC_ALONE
+	else if (selection == CHARS_MARIO_AND_TAILS)
+		levelselect.characters = CHARS_SONIC_AND_TAILS
 
 	base.SetGlobalCharacters()
 
 	levelselect.characters = selection
 
-	bool active = wantMario && (global.characters == CHARS_SONIC_ALONE) && (competition_mode.active == 0)
+	bool active = wantMario && (global.characters == CHARS_SONIC_ALONE || global.characters == CHARS_SONIC_AND_TAILS) && (competition_mode.active == 0)
 	mario.active = active ? 1 : 0
 	if (active)
 	{

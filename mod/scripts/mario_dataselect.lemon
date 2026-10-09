@@ -3,8 +3,8 @@
 //-------------------------------------------------------//
 
 // Save slots store the character selection in the upper 4 bits of a byte,
-// so Mario simply uses the next free value CHARS_MARIO (5).
-// In-game, Mario is represented as "Sonic alone" plus "mario.active".
+// so Mario simply uses the next free values: CHARS_MARIO (5) and CHARS_MARIO_AND_TAILS (6).
+// In-game, Mario is represented as "Sonic alone" / "Sonic & Tails" plus "mario.active".
 
 
 // Character selection with up / down
@@ -16,10 +16,13 @@ function void fn00d6d0()
 	{
 		u8 maxNormalSelection = Game.isSecretUnlocked(SECRET_KNUX_AND_TAILS) ? CHARS_KNUCKLES_AND_TAILS : CHARS_KNUCKLES_ALONE
 
+		// Order: Sonic & Tails, Sonic, Tails, Knuckles, (Knuckles & Tails), Mario, Mario & Tails
 		if (control.pad1.pressed & CONTROL_UP)
 		{
-			if (character == CHARS_MARIO)
+			if (character == CHARS_MARIO_AND_TAILS)
 				character = CHARS_SONIC_AND_TAILS
+			else if (character == CHARS_MARIO)
+				character = CHARS_MARIO_AND_TAILS
 			else if (character >= maxNormalSelection)
 				character = CHARS_MARIO
 			else
@@ -28,10 +31,12 @@ function void fn00d6d0()
 		}
 		else if (control.pad1.pressed & CONTROL_DOWN)
 		{
-			if (character == CHARS_MARIO)
+			if (character == CHARS_MARIO_AND_TAILS)
+				character = CHARS_MARIO
+			else if (character == CHARS_MARIO)
 				character = maxNormalSelection
 			else if (character == CHARS_SONIC_AND_TAILS)
-				character = CHARS_MARIO
+				character = CHARS_MARIO_AND_TAILS
 			else
 				--character
 			playSound(SFX_CLICK)
@@ -41,12 +46,18 @@ function void fn00d6d0()
 }
 
 
+function bool Mario.isMarioSelection(u16 characters)
+{
+	return (characters == CHARS_MARIO || characters == CHARS_MARIO_AND_TAILS)
+}
+
+
 function bool Mario.isDataSelectMarioObject()
 {
 	if (objA0.update_address == 0x00d30c)
-		return (dataselect.nosave_characters == CHARS_MARIO)
+		return Mario.isMarioSelection(dataselect.nosave_characters)
 	if (objA0.update_address == 0x00d42c)
-		return (u16[A0 + 0x34] == CHARS_MARIO)
+		return Mario.isMarioSelection(u16[A0 + 0x34])
 	return false
 }
 
@@ -55,9 +66,12 @@ function bool Mario.isDataSelectMarioObject()
 //# address-hook(0x00d69e) end(0x00d6ca)
 function void fn00d69e()
 {
-	if (Mario.isDataSelectMarioObject() && objA0.animation.sprite == CHARS_MARIO + 4)
+	if (Mario.isDataSelectMarioObject())
 	{
-		objA0.animation.sprite = CHARS_SONIC_ALONE + 4
+		if (objA0.animation.sprite == CHARS_MARIO + 4)
+			objA0.animation.sprite = CHARS_SONIC_ALONE + 4
+		else if (objA0.animation.sprite == CHARS_MARIO_AND_TAILS + 4)
+			objA0.animation.sprite = CHARS_SONIC_AND_TAILS + 4
 	}
 	base.fn00d69e()
 }
@@ -65,17 +79,18 @@ function void fn00d69e()
 
 function bool Standalone.onDrawVdpSpriteCompound(s16 px, s16 py, u8 size, u16 index, u16 renderQueue, u8 spriteCounter)
 {
-	if ((objA0.update_address == 0x00d30c || objA0.update_address == 0x00d42c) && objA0.animation.sprite == CHARS_SONIC_ALONE + 4)
+	if ((objA0.update_address == 0x00d30c || objA0.update_address == 0x00d42c) && (objA0.animation.sprite == CHARS_SONIC_ALONE + 4 || objA0.animation.sprite == CHARS_SONIC_AND_TAILS + 4))
 	{
 		if (Mario.isDataSelectMarioObject())
 		{
 			// Sonic's icon consists of two sprite pieces, see mapping frame 5 at 0x00ce0e
+			// In the Sonic & Tails icon (frame 4), the same pieces are 6 pixels further left, and Tails' pieces stay as they are
 			u16 tile = index & 0x07ff
 			u16 baseTile = objA0.sprite_attributes & 0x07ff
 			if (tile == ((baseTile + 0x06c) & 0x07ff))
 			{
-				// First piece is located at (-18, -40) relative to the object position
-				Renderer.drawCustomSprite("mario_dataselect", px + 18, py + 40, 0x00, SPRITE_FLAG_PRIO, renderQueue)
+				// First piece is located at (-18, -40) relative to the object position (or (-24, -40) for Sonic & Tails)
+				Renderer.drawCustomSprite("mario_dataselect", px + 18, py + 40, 0x00, SPRITE_FLAG_PRIO, renderQueue + 1)
 				return true
 			}
 			if (tile == ((baseTile + 0x078) & 0x07ff))
@@ -104,7 +119,7 @@ function void fn00c97a()
 		{
 			characters = CHARS_SONIC_AND_TAILS
 		}
-		else if (characters == CHARS_SONIC_AND_TAILS || characters == CHARS_MARIO)
+		else if (characters == CHARS_SONIC_AND_TAILS || characters == CHARS_MARIO || characters == CHARS_MARIO_AND_TAILS)
 		{
 			characters = CHARS_SONIC_ALONE
 		}
@@ -160,12 +175,13 @@ function void fn00c97a()
 // Used save slots: Mario plays Sonic's route, so let the zone selection of completed games behave like Sonic's
 function bool fn00d458()
 {
-	if (u16[A0 + 0x34] != CHARS_MARIO)
+	u16 characters = u16[A0 + 0x34]
+	if (!Mario.isMarioSelection(characters))
 		return base.fn00d458()
 
 	u32 objectAddress = A0
-	u16[objectAddress + 0x34] = CHARS_SONIC_ALONE
+	u16[objectAddress + 0x34] = (characters == CHARS_MARIO) ? CHARS_SONIC_ALONE : CHARS_SONIC_AND_TAILS
 	u8 result = base.fn00d458()
-	u16[objectAddress + 0x34] = CHARS_MARIO
+	u16[objectAddress + 0x34] = characters
 	return result
 }

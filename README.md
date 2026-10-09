@@ -59,12 +59,15 @@ Everything runs offline in the browser, and the ROM is never uploaded.
 In **Normal Game → Data Select**, pick a new save slot (or "No Save") and press **Up/Down**
 to cycle through the characters. Mario comes after Knuckles (or Knuckles & Tails, if unlocked):
 
-`Sonic & Tails → Sonic → Tails → Knuckles → (Knuckles & Tails) → Mario`
+`Sonic & Tails → Sonic → Tails → Knuckles → (Knuckles & Tails) → Mario → Mario & Tails`
 
-Save slots remember Mario. He plays Sonic's route through the game.
+**Mario & Tails** works like Sonic & Tails: Tails follows Mario as his sidekick (and a second
+player can control Tails with another controller). Save slots remember the choice. Mario plays
+Sonic's route through the game, including the IceCap snowboard ride, where he rides his own
+red snowboard.
 
 Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
-- **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" choice there play as Mario.
+- **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" (and "Sonic & Tails") choice there play as Mario.
 - **World scale**: "Sonic 3" (default) scales Mario's movement so he covers ground about as fast as
   Sonic does. "Mario 64" uses Mario's true size relative to the Sonic 3 levels (he is slower and jumps lower).
 - **Mario voice clips**: on/off.

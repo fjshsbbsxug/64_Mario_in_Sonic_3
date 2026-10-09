@@ -69,6 +69,73 @@ EXTRA = [
 ]
 
 
+# ICZ 1 snowboarding: Mario on a snowboard, one sprite for each of Sonic's snowboarding frames
+# ("mario_sb_<frame>"). Board angle (degrees, clockwise) and board center relative to the
+# sprite center follow Sonic's frames, so Mario lines up with the game's animation.
+# Mario leans with the board by "lean" (0..1). In the trick frames he isn't standing on the
+# board, so his feet position is given instead.
+#   (frame, board angle, board x, board y, SM64 animation, lean, feet position or None)
+SNOWBOARD = [
+    (0x01, 47, 1, 2, 0x4A, 0.4, None),          # trick frames (in the air)
+    (0x02, 85, -1, 14, 0x4A, 0.0, (0, 15)),
+    (0x03, -48, -2, 11, 0x4A, 0.0, (-3, 10)),
+    (0x04, -53, -1, 15, 0x4A, 0.0, (2, 12)),
+    (0x05, 59, 0, 12, 0x4A, 0.0, (0, 12)),
+    (0x06, 0, -3, 12, 0x47, 1.0, None),         # riding
+    (0x07, -6, -1, 12, 0x47, 1.0, None),
+    (0x08, -11, -2, 11, 0x47, 1.0, None),
+    (0x09, 62, -9, 5, 0x47, 0.4, None),         # steep slopes
+    (0x0A, 38, -6, 6, 0x47, 0.6, None),
+    (0x0B, 8, -2, 10, 0x47, 1.0, None),
+    (0x0C, 22, -2, 9, 0x47, 1.0, None),
+]
+SNOWBOARD_CANVAS = 96
+BOARD_LENGTH = 46
+BOARD_THICKNESS = 4
+BOARD_COLORS = ((248, 96, 72), (200, 24, 24), (40, 24, 56))    # top, bottom, outline
+
+
+def draw_board(hi, cx, cy, angle_deg, ss):
+    """Draws the snowboard (a red capsule) into a supersampled RGBA image, behind what's there."""
+    a = math.radians(angle_deg)
+    u = np.array([math.cos(a), math.sin(a)])
+    n = np.array([math.sin(a), -math.cos(a)])        # board's "up"
+    h, w = hi.shape[:2]
+    ys, xs = np.mgrid[0:h, 0:w]
+    px = (xs + 0.5) / ss - cx
+    py = (ys + 0.5) / ss - cy
+    along = px * u[0] + py * u[1]
+    across = px * n[0] + py * n[1]
+    half = BOARD_LENGTH / 2 - BOARD_THICKNESS / 2
+    dist = np.hypot(np.maximum(np.abs(along) - half, 0), across)
+    inside = dist <= BOARD_THICKNESS / 2
+    outline = inside & (dist > BOARD_THICKNESS / 2 - 1)
+    top, bottom, edge = [np.array(c, np.float32) / 255 for c in BOARD_COLORS]
+    col = np.where((across > 0)[..., None], top, bottom)
+    col = np.where(outline[..., None], edge, col)
+    free = inside & (hi[..., 3] == 0)
+    hi[free, :3] = col[free]
+    hi[free, 3] = 1.0
+
+
+def render_snowboard(model, anims, frame_def):
+    _fid, angle, bx, by, anim_id, lean, feet_pos = frame_def
+    mats = mdl.pose_matrices(anims[anim_id], 0)
+    soup = mdl.build_soup(model, mats, lhand="open", rhand="open")
+    view = mdl.view_matrix(YAW, PITCH, -angle * lean)
+    c = SNOWBOARD_CANVAS // 2
+    a = math.radians(angle)
+    board = (c + bx, c + by)
+    if feet_pos is None:
+        # Standing on the board
+        feet = (board[0] + math.sin(a) * BOARD_THICKNESS / 2, board[1] - math.cos(a) * BOARD_THICKNESS / 2)
+    else:
+        feet = (c + feet_pos[0], c + feet_pos[1])
+    hi = mdl.render(soup, view, (SNOWBOARD_CANVAS, SNOWBOARD_CANVAS), PX_PER_UNIT, feet, LIGHT, ss=SS)
+    draw_board(hi, board[0], board[1], angle, SS)
+    return downsample(hi, SS), (c, c)
+
+
 def anim_sprite_frames(anim, step):
     return list(range(0, mdl.anim_num_frames(anim), step))
 
@@ -186,6 +253,10 @@ def render_all(model, anims, outdir, script_path, progress=None):
         rendered.append((key, img, center))
         if progress:
             progress(len(rendered), len(jobs))
+
+    for fd in SNOWBOARD:
+        img, center = render_snowboard(model, anims, fd)
+        rendered.append(("mario_sb_%02x" % fd[0], img, center))
 
     head, _hc = render_sprite(model, anims, 0xC5, 0, dict(yaw=35, pitch=5, anchor=40), px_per_unit=0.36, canvas=96)
     portrait, _pc = render_sprite(model, anims, 0xC5, 0, dict(yaw=40, pitch=5), px_per_unit=0.255)
