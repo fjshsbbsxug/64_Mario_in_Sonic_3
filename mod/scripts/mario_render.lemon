@@ -96,6 +96,28 @@ function u8 Mario.getSpriteAngle()
 }
 
 
+// Shows a warning if Mario is drawn, but his movement code doesn't run (then Sonic's code moves him instead).
+// That happens when the game uses an older copy of this mod, or with game versions this mod doesn't support.
+function void Mario.checkMovementCodeRunning()
+{
+	if (char.base_state != base_state.NORMAL || (char.control_flags & control_flag.DISABLE_UPDATE))
+		return
+	if (u16(level.framecounter - mario.updateFrame) <= 4)
+		return
+
+	if (mario.missedUpdates < 1000)
+		++mario.missedUpdates
+	if (mario.missedUpdates < 90)
+		return
+
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.1.3:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 50, "and delete older Mario64 copies.", 0xffffffff, 1, 0, 0xf000, false, true)
+}
+
+
 // Replaces the drawing of Sonic with Mario
 function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s16 py, bool asSmallGhost)
 {
@@ -122,6 +144,8 @@ function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s
 		flags |= SPRITE_FLAG_FLIP_Y
 	if (char.sprite_attributes & sprite_attribute.PRIORITY)
 		flags |= SPRITE_FLAG_PRIO
+
+	Mario.checkMovementCodeRunning()
 
 	u8 angle = Mario.getSpriteAngle()
 	u16 renderQueue = 0xa000 - char.sprite_priority

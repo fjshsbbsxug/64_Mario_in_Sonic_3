@@ -13,6 +13,7 @@ Without a ROM path, the builder asks for it (you can drag & drop the file into t
 """
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -127,18 +128,132 @@ def build(rom_path, out_dir, install, voices):
     if install:
         mods = s3air_mods_folder()
         if mods:
-            os.makedirs(mods, exist_ok=True)
-            target = os.path.join(mods, MOD_FOLDER_NAME)
-            if os.path.exists(target):
-                shutil.rmtree(target)
-            shutil.copytree(mod_dir, target)
-            print("\nInstalled into your Sonic 3 A.I.R. mods folder:\n  %s" % target)
-            print("Start the game, open 'Mods' in the main menu and enable 'Mario 64 (SM64 movement)'.")
+            install_mod(mod_dir, mods)
         else:
             print("\nCouldn't find the Sonic 3 A.I.R. saved data folder (start the game once first),")
             print("so copy the 'Mario64' folder or zip into your S3AIR 'mods' folder yourself.")
     else:
         print("\nCopy the 'Mario64' folder or zip into your S3AIR 'mods' folder, then enable it in the Mods menu.")
+
+
+MOD_IDS = ("mario64-extra-slot", "mario64-sm64-movement")
+
+
+def _is_mario_mod_json(text):
+    return any('"%s"' % mod_id in text for mod_id in MOD_IDS)
+
+
+def find_installed_copies(mods):
+    """All copies of this mod (any version) in the mods folder: list of (path, active-mods entry)."""
+    found = []
+    for root, dirs, files in os.walk(mods):
+        depth = os.path.relpath(root, mods).count(os.sep) + (0 if root == mods else 1)
+        if depth > 3:
+            dirs[:] = []
+            continue
+        if root != mods and "mod.json" in files:
+            try:
+                with open(os.path.join(root, "mod.json"), encoding="utf-8", errors="replace") as f:
+                    if _is_mario_mod_json(f.read()):
+                        found.append((root, os.path.relpath(root, mods).replace(os.sep, "/")))
+            except OSError:
+                pass
+            dirs[:] = []
+            continue
+        for fn in files:
+            if not fn.lower().endswith(".zip"):
+                continue
+            path = os.path.join(root, fn)
+            try:
+                with zipfile.ZipFile(path) as z:
+                    for name in z.namelist():
+                        if name.endswith("mod.json") and name.count("/") <= 1 and _is_mario_mod_json(z.read(name).decode("utf-8", "replace")):
+                            inner = name[:-len("mod.json")].rstrip("/")
+                            rel = os.path.relpath(path, mods).replace(os.sep, "/")
+                            found.append((path, rel + "/" + inner if inner else rel))
+                            break
+            except (OSError, zipfile.BadZipFile):
+                pass
+    return found
+
+
+def game_is_running():
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import subprocess
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Sonic3AIR.exe"], capture_output=True, text=True).stdout
+        return "sonic3air.exe" in out.lower()
+    except Exception:
+        return False
+
+
+def install_mod(mod_dir, mods):
+    """Installs the mod as mods/Mario64, moves any other copies of it out of the mods folder, and activates it."""
+    if game_is_running():
+        print("\nSonic 3 A.I.R. is running - please close it, then press Enter to install the mod.")
+        try:
+            input()
+        except EOFError:
+            pass
+
+    os.makedirs(mods, exist_ok=True)
+    target = os.path.join(mods, MOD_FOLDER_NAME)
+
+    # Other copies (e.g. a Mario64.zip from the web builder, or older versions) would be listed as
+    # separate mods, and the game may keep using one of those, so move them out of the mods folder
+    backup = os.path.join(os.path.dirname(mods), "mods_backup_mario64")
+    moved = []
+    for path, _entry in find_installed_copies(mods):
+        if os.path.normcase(os.path.abspath(path)) == os.path.normcase(os.path.abspath(target)):
+            continue
+        os.makedirs(backup, exist_ok=True)
+        dest = os.path.join(backup, os.path.basename(path))
+        n = 2
+        while os.path.exists(dest):
+            dest = os.path.join(backup, "%s (%d)" % (os.path.basename(path), n))
+            n += 1
+        shutil.move(path, dest)
+        moved.append(dest)
+
+    if os.path.exists(target):
+        shutil.rmtree(target)
+    shutil.copytree(mod_dir, target)
+    print("\nInstalled into your Sonic 3 A.I.R. mods folder:\n  %s" % target)
+    if moved:
+        print("Moved other copies of the Mario mod out of the mods folder, so they don't get in the way:")
+        for m in moved:
+            print("  " + m)
+
+    # Activate it (and drop entries of the copies that are gone)
+    active_path = os.path.join(mods, "active-mods.json")
+    data = {"ActiveMods": [], "UseLegacyLoading": False}
+    try:
+        with open(active_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        pass
+    remaining = set(e for _p, e in find_installed_copies(mods))
+    active = [e for e in data.get("ActiveMods", []) if not isinstance(e, str) or e in remaining or not _looks_like_mario_entry(e)]
+    if MOD_FOLDER_NAME not in active:
+        active.append(MOD_FOLDER_NAME)
+    data["ActiveMods"] = active
+    with open(active_path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    print("The mod is activated: start the game and pick Mario in Data Select (he comes after Knuckles).")
+    print("In the Mods menu it's listed as '%s'." % _mod_display_name(target))
+
+
+def _looks_like_mario_entry(entry):
+    return "mario64" in entry.lower()
+
+
+def _mod_display_name(mod_dir):
+    try:
+        with open(os.path.join(mod_dir, "mod.json"), encoding="utf-8") as f:
+            return json.load(f)["Metadata"]["Name"]
+    except (OSError, ValueError, KeyError):
+        return "Mario 64"
 
 
 def _disable_voices(mod_dir):

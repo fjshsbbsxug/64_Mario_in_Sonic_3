@@ -22,7 +22,7 @@ Steps:
    - **Windows:** double-click **`Build Mario Mod (Windows).bat`**, or drag your ROM onto it. When asked, drag the ROM into the window and press Enter.
    - **Linux / macOS:** run `./build_mario_mod.sh path/to/SuperMario64.z64`
    
-   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and copies it straight into your S3AIR `mods` folder.
+   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and installs it into your S3AIR `mods` folder. It also activates it, and moves any other copies of the Mario mod (older versions, or a `Mario64.zip` from the web builder) to a `mods_backup_mario64` folder next to the mods folder, so they can't get in the way.
 3. Start Sonic 3 A.I.R., open **Mods** in the main menu and enable **Mario 64 (SM64 movement)**.
 
 The built mod is also saved as `output/Mario64.zip`, in case you want to install it by hand
@@ -46,7 +46,7 @@ Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--no-inst
    On Android 10 and older, the app can do this for you: tap **Install into Sonic 3 A.I.R.**
 6. Start Sonic 3 A.I.R., open **Mods** and enable **Mario 64 (SM64 movement)**.
 
-If Mario still moves like Sonic, an older version of the mod is still installed: delete the old
+If Mario still moves like Sonic (standing still while sliding around), an older version of the mod is still installed: delete the old
 `Mario64` folder from the mods folder, or deactivate the mod called just **Mario 64** (versions
 before 2.1 had that name; the game shows a conflict warning when both are active).
 
@@ -71,24 +71,31 @@ Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
 
 ## Controls (2D)
 
-The Genesis buttons map to Super Mario 64's buttons: **A/B = SM64's A** (jump),
-**C = SM64's B** (punch / kick / dive), **Down = SM64's Z**. On a keyboard with S3AIR's
-default layout, C is the **D** key; on a gamepad it's **X**.
+The controls follow Super Mario 64:
+
+| SM64 button | Gamepad | Keyboard (S3AIR default) |
+|---|---|---|
+| **A** (jump) | A | A |
+| **B** (punch / kick / dive) | B or X | S or D |
+| **Z** (crouch / ground pound) | Y, R or Down | W or Down |
+
+Under *Options → Mods → Mario 64 → Controls*, you can switch to the Sonic 3 layout instead:
+A/B jump, X (Genesis C) attacks and Down crouches.
 
 | Move | Input |
 |---|---|
 | Walk / run | Left / Right (Mario accelerates like in SM64; reversing at speed makes him skid and turn) |
 | Jump, Double Jump, Triple Jump | Jump; Jump again right after landing (the triple jump needs running speed) |
-| Backflip | Hold **Down** (crouch) + Jump |
+| Backflip | Hold **Z** (crouch) + Jump |
 | Side Flip | Turn around while running, then Jump while skidding |
-| Long Jump | Run, then **Down** (crouch slide) + Jump |
+| Long Jump | Run, then **Z** (crouch slide) + Jump |
 | Wall Kick | Jump right after hitting a wall in mid-air |
-| Punch, punch, kick | **C** while standing (press repeatedly) |
-| Dive / belly slide | **C** while running or in mid-air; Jump or C during the slide to roll out |
-| Slide Kick | **C** during a crouch slide (Down while running) |
-| Jump Kick | **C** in mid-air while jumping slowly |
-| Ground Pound | **Down** in mid-air |
-| Crouch / crawl | Hold **Down** (and Left/Right to crawl) |
+| Punch, punch, kick | **B** while standing (press repeatedly) |
+| Dive / belly slide | **B** while running or in mid-air; Jump or B during the slide to roll out |
+| Slide Kick | **B** during a crouch slide (Z while running) |
+| Jump Kick | **B** in mid-air while jumping slowly |
+| Ground Pound | **Z** in mid-air |
+| Crouch / crawl | Hold **Z** (and Left/Right to crawl) |
 | Swim | Underwater: Jump to swim a stroke, hold Jump to flutter kick, Up/Down to swim up/down. Jump at the surface to jump out |
 
 Steep slopes make Mario slide like in SM64 (butt slide), and falling from high up makes him

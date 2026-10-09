@@ -17,6 +17,12 @@ constant u16 CHARS_MARIO = 5
 global u8 mario.option.everywhere		// 1 = Sonic alone gets replaced by Mario in all game modes
 global u8 mario.option.voice			// 1 = Mario voice clips enabled
 global u8 mario.option.scale			// 0 = Sonic 3 scale, 1 = Mario 64 scale
+global u8 mario.option.controls		// 0 = SM64 layout (A jump, B/X attack, Y/R crouch), 1 = Sonic 3 layout (A/B jump, C attack)
+
+constant u8 MARIO_BUTTON_A = 0x01		// SM64's A button: jump
+constant u8 MARIO_BUTTON_B = 0x02		// SM64's B button: punch / kick / dive
+constant u8 MARIO_BUTTON_Z = 0x04		// SM64's Z button: crouch / ground pound
+
 
 global u8 mario.active
 
@@ -81,6 +87,8 @@ global u16 mario.winTimer
 global s8 mario.drawAngle
 global u8 mario.wallBoost				// Velocity raised for breakable walls this frame (see Mario.applyWallBoost)
 global s16 mario.wallBoostVx
+global u16 mario.updateFrame				// Frame counter of the last update of Mario's movement code
+global u16 mario.missedUpdates
 global s16 mario.wallBoostRealVx
 global s16 mario.wallBoostRealGs
 
@@ -298,17 +306,20 @@ function void Character.UpdateNormalState.Sonic()
 		return
 	}
 
+	mario.updateFrame = level.framecounter
+	mario.missedUpdates = 0
+
 	// Mario never uses Sonic's specials
 	sonic.dropdash_counter = 0
 	sonic.fastrunanim.timer = 0
 
 	// Collect button presses for the next tick (SM64 runs at 30 Hz)
-	u8 pressed = control.player1.pressed
-	if (pressed & (CONTROL_A | CONTROL_B))
+	u8 pressed = Mario.getButtons(true)
+	if (pressed & MARIO_BUTTON_A)
 		mario.pendA = 1
-	if (pressed & CONTROL_C)
+	if (pressed & MARIO_BUTTON_B)
 		mario.pendB = 1
-	if (pressed & CONTROL_DOWN)
+	if (pressed & MARIO_BUTTON_Z)
 		mario.pendZ = 1
 
 	mario.tick = ((level.framecounter & 0x01) == 0) ? 1 : 0
@@ -659,6 +670,43 @@ function void Mario.updateFacingFlag()
 // Inputs                                                //
 //-------------------------------------------------------//
 
+// Maps the controller to SM64's buttons; "pressed" = just pressed this frame, otherwise held
+//  - SM64 layout:    A = jump, B / X = attack, Y / R / Down = crouch
+//  - Sonic 3 layout: A / B = jump, C (= X on gamepads) = attack, Down = crouch
+// Sonic 3's own control bits only cover A, B, C (X on gamepads) and the d-pad, so Y and R are read directly.
+function u8 Mario.getButtons(bool pressed)
+{
+	u8 pad = pressed ? control.player1.pressed : control.player1.state
+	u8 result = 0
+	if (pad & CONTROL_DOWN)
+		result |= MARIO_BUTTON_Z
+
+	if (mario.option.controls == 1)
+	{
+		if (pad & (CONTROL_A | CONTROL_B))
+			result |= MARIO_BUTTON_A
+		if (pad & CONTROL_C)
+			result |= MARIO_BUTTON_B
+		return result
+	}
+
+	if (pad & CONTROL_A)
+		result |= MARIO_BUTTON_A
+	if (pad & (CONTROL_B | CONTROL_C))
+		result |= MARIO_BUTTON_B
+
+	// Y and R only when the game isn't controlling the character itself (e.g. in cutscenes)
+	if (player1.control_override == 0)
+	{
+		bool y = pressed ? Input.buttonPressed(0, BUTTON_Y) : Input.buttonDown(0, BUTTON_Y)
+		bool r = pressed ? Input.buttonPressed(0, BUTTON_R) : Input.buttonDown(0, BUTTON_R)
+		if (y || r)
+			result |= MARIO_BUTTON_Z
+	}
+	return result
+}
+
+
 function void Mario.updateInputs(bool onGround)
 {
 	u8 state = control.player1.state
@@ -670,8 +718,9 @@ function void Mario.updateInputs(bool onGround)
 	mario.pendB = 0
 	mario.pendZ = 0
 
-	mario.inADown = (state & (CONTROL_A | CONTROL_B)) ? 1 : 0
-	mario.inZDown = (state & CONTROL_DOWN) ? 1 : 0
+	u8 held = Mario.getButtons(false)
+	mario.inADown = (held & MARIO_BUTTON_A) ? 1 : 0
+	mario.inZDown = (held & MARIO_BUTTON_Z) ? 1 : 0
 	mario.inUp = (state & CONTROL_UP) ? 1 : 0
 
 	s8 stick = 0
