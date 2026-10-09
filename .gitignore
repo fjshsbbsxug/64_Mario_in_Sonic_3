@@ -1,0 +1,8 @@
+# Generated mod output (contains assets extracted from your own game ROMs, don't commit)
+build/
+__pycache__/
+*.pyc
+# ROMs
+*.z64
+*.n64
+*.bin

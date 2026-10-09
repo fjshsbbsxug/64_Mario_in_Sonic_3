@@ -1,0 +1,10 @@
+//-------------------------------------------------------//
+// Mario 64 in Sonic 3 A.I.R.                            //
+// Adds Mario as an extra character slot                 //
+//-------------------------------------------------------//
+
+//# script-feature-level(2)
+
+include mario_dataselect
+include mario_moves
+include mario_render

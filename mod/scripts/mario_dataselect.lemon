@@ -1,0 +1,168 @@
+//-------------------------------------------------------//
+// Mario: extra character slot in Data Select            //
+//-------------------------------------------------------//
+
+// Save slots store the character selection in the upper 4 bits of a byte,
+// so Mario simply uses the next free value CHARS_MARIO (5).
+// In-game, Mario is represented as "Sonic alone" plus "mario.active".
+
+
+// Character selection with up / down
+function void fn00d6d0()
+{
+	u8 character = D0.u8
+	if (u16[0xffffb04a + 0x30] == 0)
+	{
+		u8 maxNormalSelection = Game.isSecretUnlocked(SECRET_KNUX_AND_TAILS) ? CHARS_KNUCKLES_AND_TAILS : CHARS_KNUCKLES_ALONE
+
+		if (control.pad1.pressed & CONTROL_UP)
+		{
+			if (character == CHARS_MARIO)
+				character = CHARS_SONIC_AND_TAILS
+			else if (character >= maxNormalSelection)
+				character = CHARS_MARIO
+			else
+				++character
+			playSound(SFX_CLICK)
+		}
+		else if (control.pad1.pressed & CONTROL_DOWN)
+		{
+			if (character == CHARS_MARIO)
+				character = maxNormalSelection
+			else if (character == CHARS_SONIC_AND_TAILS)
+				character = CHARS_MARIO
+			else
+				--character
+			playSound(SFX_CLICK)
+		}
+	}
+	D0 = character
+}
+
+
+function bool Mario.isDataSelectMarioObject()
+{
+	if (objA0.update_address == 0x00d30c)
+		return (dataselect.nosave_characters == CHARS_MARIO)
+	if (objA0.update_address == 0x00d42c)
+		return (u16[A0 + 0x34] == CHARS_MARIO)
+	return false
+}
+
+
+// Character icons: there's no mapping frame for Mario, so use Sonic's and replace it when rendering
+function void fn00d69e()
+{
+	if (Mario.isDataSelectMarioObject() && objA0.animation.sprite == CHARS_MARIO + 4)
+	{
+		objA0.animation.sprite = CHARS_SONIC_ALONE + 4
+	}
+	base.fn00d69e()
+}
+
+
+function bool Standalone.onDrawVdpSpriteCompound(s16 px, s16 py, u8 size, u16 index, u16 renderQueue, u8 spriteCounter)
+{
+	if ((objA0.update_address == 0x00d30c || objA0.update_address == 0x00d42c) && objA0.animation.sprite == CHARS_SONIC_ALONE + 4)
+	{
+		if (Mario.isDataSelectMarioObject())
+		{
+			// Sonic's icon consists of two sprite pieces, see mapping frame 5 at 0x00ce0e
+			u16 tile = index & 0x07ff
+			u16 baseTile = objA0.sprite_attributes & 0x07ff
+			if (tile == ((baseTile + 0x06c) & 0x07ff))
+			{
+				// First piece is located at (-18, -40) relative to the object position
+				Renderer.drawCustomSprite("mario_dataselect", px + 18, py + 40, 0x00, SPRITE_FLAG_PRIO, renderQueue)
+				return true
+			}
+			if (tile == ((baseTile + 0x078) & 0x07ff))
+			{
+				return true
+			}
+		}
+	}
+	return base.Standalone.onDrawVdpSpriteCompound(px, py, size, index, renderQueue, spriteCounter)
+}
+
+
+// Lives & continues icons in the save slots: show Sonic's for Mario (there's no other plane tile data for him)
+function void fn00c97a()
+{
+	A2 = 0x00da8a
+	A3 = 0xffffb128
+	D7.u16 = 0xd220
+	A0 = 0xffffe6ac
+	for (u8 slot = 0; slot < 8; ++slot)
+	{
+		bool saveGameSlotUsed = (u8[A0] & 0x80) == 0
+		u16 characters = u16[A3 + 0x34]
+		if (!saveGameSlotUsed)
+		{
+			characters = CHARS_SONIC_AND_TAILS
+		}
+		else if (characters == CHARS_SONIC_AND_TAILS || characters == CHARS_MARIO)
+		{
+			characters = CHARS_SONIC_ALONE
+		}
+		else
+		{
+			characters = min(characters, 3)		// Handle Knuckles & Tails - show Knuckles' icons
+		}
+
+		// Draw icons for lives & continues
+		A1 = A2 + characters * 32
+		D0 = VDPHelper.getDirectVRAMWriteCode(D7.u16)
+		D1 = 2
+		D2 = 4
+		fn001506()
+
+		// Draw lives & continues numbers
+		if (!saveGameSlotUsed)
+		{
+			A1 = 0x00db08
+			D0 = VDPHelper.getDirectVRAMWriteCode(D7.u16 + 6)
+			D1 = 1
+			D2 = 4
+			fn001506()
+		}
+		else
+		{
+			// Render lives digits
+			D0.u8 = u8[A3 + 0x3e]
+			fn00ca14()
+
+			D0 = VDPHelper.getDirectVRAMWriteCode(D7.u16 + 6)
+			D1 = 1
+			D2 = 1
+			fn001506()
+
+			// Render continues digits
+			D0.u8 = u8[A3 + 0x3f]
+			fn00ca14()
+
+			D0 = VDPHelper.getDirectVRAMWriteCode(D7.u16 + 0x306)
+			D1 = 1
+			D2 = 1
+			fn001506()
+		}
+
+		D7.u16 += 0x1a
+		A0 += 10
+		A3 += 0x4a
+	}
+}
+
+
+// Used save slots: Mario plays Sonic's route, so let the zone selection of completed games behave like Sonic's
+function bool fn00d458()
+{
+	if (u16[A0 + 0x34] != CHARS_MARIO)
+		return base.fn00d458()
+
+	u32 objectAddress = A0
+	u16[objectAddress + 0x34] = CHARS_SONIC_ALONE
+	u8 result = base.fn00d458()
+	u16[objectAddress + 0x34] = CHARS_MARIO
+	return result
+}
