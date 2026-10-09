@@ -1,235 +1,148 @@
 //-------------------------------------------------------//
-// Mario: animation and sprite rendering                 //
+// Mario: sprite rendering                               //
 //-------------------------------------------------------//
 
-// Animation groups (for resetting the animation frame on changes)
-constant u8 MARIO_ANIM_WALK    = 0x80
-constant u8 MARIO_ANIM_RUN     = 0x81
-constant u8 MARIO_ANIM_IDLE    = 0x82
-constant u8 MARIO_ANIM_PUSH    = 0x83
-constant u8 MARIO_ANIM_VICTORY = 0x84
-constant u8 MARIO_ANIM_OTHER   = 0x85
+// Sprites are named "mario_<SM64 animation id>_<index>", rendered from the SM64 animations
+// by the mod builder. Extra sprite sets use ids that don't exist in SM64:
+constant u8 MARIO_SPRITES_DEATH  = 0xe0
+constant u8 MARIO_SPRITES_DROWN  = 0xe1
+constant u8 MARIO_SPRITES_BLINK  = 0xe2
+constant u8 MARIO_SPRITES_HURT   = 0xe3
 
 
-function u8 Mario.getAnimGroup()
+function u64 Mario.spriteKey(u8 anim, s32 frame)
 {
-	u8 st = char.state
-	bool inAir = (char.flags & char.flag.IN_AIR) != 0
-	if (mario.move != MARIO_MOVE_NONE)
-		return mario.move
-	if (st == char.state.WIN_POSE)
-		return MARIO_ANIM_VICTORY
-	if (st == char.state.PUSHING)
-		return MARIO_ANIM_PUSH
-	if (inAir)
-		return MARIO_ANIM_OTHER
-	if (st == char.state.STANDING)
-		return MARIO_ANIM_IDLE
-	if (st == char.state.RUNNING || st == char.state.RUNNING2)
-		return (abs(char.groundspeed) >= 0x600) ? MARIO_ANIM_RUN : MARIO_ANIM_WALK
-	return MARIO_ANIM_OTHER
+	u8 count = MarioAnim.SPRITE_COUNT[anim]
+	if (count == 0)
+	{
+		anim = 0xc5
+		count = MarioAnim.SPRITE_COUNT[anim]
+		frame = 0
+	}
+	s32 index = frame / s32(max(MarioAnim.SPRITE_STEP[anim], 1))
+	index = clamp(index, 0, s32(count) - 1)
+	return stringformat("mario_%02x_%d", anim, index)
 }
 
 
-function void Mario.updateAnimationTimers()
+// Sprite of a looping SM64 animation, timed by the frame counter
+function u64 Mario.loopingSpriteKey(u8 anim, u8 speedShift)
 {
-	u8 group = Mario.getAnimGroup()
-	if (group != mario.anim_group)
-	{
-		// Walking and running share the cycle position, so the transition looks smooth
-		bool keepCycle = (group == MARIO_ANIM_WALK && mario.anim_group == MARIO_ANIM_RUN) || (group == MARIO_ANIM_RUN && mario.anim_group == MARIO_ANIM_WALK)
-		mario.anim_group = group
-		if (!keepCycle)
-		{
-			mario.anim_frame = 0
-			mario.anim_acc = 0
-		}
-	}
-
-	if (group == MARIO_ANIM_IDLE)
-		++mario.idle_timer
-	else
-		mario.idle_timer = 0
-
-	u16 speed = abs(char.groundspeed)
-	if (group == MARIO_ANIM_WALK || group == MARIO_ANIM_RUN)
-	{
-		u16 threshold = (group == MARIO_ANIM_RUN) ? 0x1400 : 0x0c00
-		mario.anim_acc += speed + 0x80
-		while (mario.anim_acc >= threshold)
-		{
-			mario.anim_acc -= threshold
-			mario.anim_frame = (mario.anim_frame + 1) & 0x07
-		}
-	}
-	else if (group == MARIO_ANIM_PUSH)
-	{
-		++mario.anim_acc
-		if (mario.anim_acc >= 12)
-		{
-			mario.anim_acc = 0
-			mario.anim_frame = (mario.anim_frame + 1) & 0x03
-		}
-	}
-	else
-	{
-		// One-shot animations: advance and hold on the last frame
-		u8 duration = 3
-		u8 lastFrame = 0
-		if (group == MARIO_MOVE_JUMP3)
-		{
-			lastFrame = 7
-		}
-		else if (group == MARIO_MOVE_BACKFLIP)
-		{
-			lastFrame = 7
-			duration = 4
-		}
-		else if (group == MARIO_MOVE_WALLKICK)
-		{
-			lastFrame = 2
-			duration = 5
-		}
-		else if (group == MARIO_MOVE_GP_SPIN)
-		{
-			lastFrame = 3
-			duration = 3
-		}
-		else if (group == MARIO_ANIM_VICTORY)
-		{
-			lastFrame = 3
-			duration = 8
-		}
-
-		++mario.anim_acc
-		if (mario.anim_acc >= duration)
-		{
-			mario.anim_acc = 0
-			if (mario.anim_frame < lastFrame)
-				++mario.anim_frame
-		}
-	}
-}
-
-
-function u64 Mario.key(string name, u8 frame)
-{
-	return stringformat("mario_%s_%d", name, frame)
+	s32 loopEnd = max(s32(MarioAnim.LOOP_END[anim]), 1)
+	return Mario.spriteKey(anim, s32(level.framecounter >> speedShift) % loopEnd)
 }
 
 
 function u64 Mario.getSpriteKey()
 {
 	u8 st = char.state
-	bool inAir = (char.flags & char.flag.IN_AIR) != 0
-	s16 vy = global.inv_gravity ? -char.velocity.y : char.velocity.y
-	u8 slow = (level.framecounter >> 3) & 0x01
 
-	// Death & damage
+	// States set by Sonic 3 itself (death, damage, objects controlling the character)
 	if (st == char.state.DIED || st == char.state.DIED_GREY)
-		return Mario.key("death", 0)
+		return Mario.spriteKey(MARIO_SPRITES_DEATH, 0)
 	if (st == char.state.DROWNED)
-		return Mario.key("drown", 0)
-	if (st == char.state.GOT_HURT)
-		return Mario.key("hurt", 0)
-	if (st == char.state.GOT_HURT_PANIC || st == char.state.FALLING_PANIC || st == char.state.GRABBED)
-		return Mario.key("panic", slow)
-
-	// Special states
+		return Mario.spriteKey(MARIO_SPRITES_DROWN, 0)
+	if (st == char.state.GOT_HURT || char.base_state == base_state.HURT)
+		return Mario.spriteKey(MARIO_SPRITES_HURT, 0)
+	if (st == char.state.GOT_HURT_PANIC || st == char.state.FALLING_PANIC)
+		return Mario.spriteKey(0x2d, 0)
+	if (st == char.state.GRABBED)
+		return Mario.loopingSpriteKey(0x58, 1)
 	if (st == char.state.TRANSFORMING || st == char.state.LIFTED)
-		return Mario.key("twirl", (level.framecounter >> 2) & 0x03)
+		return Mario.spriteKey(0x94, 0)
 	if (st == char.state.WIN_POSE)
-		return Mario.key("victory", min(mario.anim_frame, 3))
+	{
+		++mario.winTimer
+		return Mario.spriteKey(0xcd, min(s32(mario.winTimer >> 1), s32(MarioAnim.LOOP_END[0xcd]) - 1))
+	}
+	mario.winTimer = 0
+
 	if (st == char.state.HANGING)
-		return Mario.key("hang", (level.framecounter >> 4) & 0x01)
+		return Mario.loopingSpriteKey(0x35, 1)
 	if (st == char.state.HOLDING_ON)
-		return Mario.key("pole", 0)
+		return Mario.loopingSpriteKey(0x0d, 1)
 	if (st == char.state.SONIC_HANGON)
-		return Mario.key("carried", 0)
-	if (st == char.state.STRAIGHTJUMP)
-		return Mario.key("spring", 0)
+		return Mario.loopingSpriteKey(0x2b, 1)
 	if (st == char.state.BREATHE)
-		return Mario.key("lookup", 0)
-	if (st == char.state.PUSHING)
-		return Mario.key("push", mario.anim_frame & 0x03)
-	if (st == char.state.BALANCING1 || st == char.state.BALANCING2)
-		return Mario.key("balance", slow)
-	if (st == char.state.LOOKING_UP)
-		return Mario.key("lookup", 0)
-	if (st == char.state.COWERING || st == char.state.SPINDASH)
-		return Mario.key("crouch", 0)
-	if (st == char.state.BRAKING)
-		return Mario.key("skid", 0)
+		return Mario.spriteKey(0x50, 2)
 
-	// Mario's own moves
-	u8 move = mario.move
-	if (move == MARIO_MOVE_GP_SPIN)
-		return Mario.key("gpspin", min(mario.anim_frame, 3))
-	if (move == MARIO_MOVE_GP_FALL)
-		return Mario.key("gpound", 0)
-	if (move == MARIO_MOVE_GP_LAND)
-		return Mario.key("gpland", 0)
-
-	if (st == char.state.ROLLING || st == char.state.ROLLING2 || st == char.state.SONIC_DROPDASH)
-	{
-		if (!inAir)
-		{
-			if (move == MARIO_MOVE_DIVESLIDE)
-				return Mario.key("diveslide", 0)
-			return Mario.key("crouchslide", 0)
-		}
-
-		if (move == MARIO_MOVE_JUMP2)
-			return (vy < 0) ? Mario.key("jump2", (vy < -0x300) ? 0 : 1) : Mario.key("jump2fall", (vy < 0x300) ? 0 : 1)
-		if (move == MARIO_MOVE_JUMP3)
-			return Mario.key("triple", min(mario.anim_frame, 7))
-		if (move == MARIO_MOVE_BACKFLIP)
-			return Mario.key("backflip", min(mario.anim_frame, 7))
-		if (move == MARIO_MOVE_LONGJUMP)
-			return Mario.key("longjump", (vy < 0) ? 0 : 1)
-		if (move == MARIO_MOVE_DIVE)
-			return Mario.key("dive", (vy < 0x100) ? 0 : 1)
-		if (move == MARIO_MOVE_WALLKICK)
-			return Mario.key("wallkick", min(mario.anim_frame, 2))
-		if (move == MARIO_MOVE_ROLLOUT)
-			return Mario.key("twirl", (level.framecounter >> 2) & 0x03)
-
-		// Regular jump
-		if (vy < -0x200)
-			return Mario.key("jump", 0)
-		if (vy < 0x200)
-			return Mario.key("jump", 1)
-		return Mario.key("jump", 2)
-	}
-
-	if (inAir)
-		return Mario.key("fall", slow)
-
-	// On the ground
-	if (st == char.state.STANDING || char.groundspeed == 0)
-	{
-		if (mario.idle_timer > 300)
-			return Mario.key("wait", (mario.idle_timer >> 5) & 0x01)
-		if ((mario.idle_timer & 0x7f) >= 0x7a)
-			return Mario.key("blink", 0)
-		return Mario.key("idle", (level.framecounter >> 4) & 0x03)
-	}
-
-	if (abs(char.groundspeed) >= 0x600)
-		return Mario.key("run", mario.anim_frame & 0x07)
-	return Mario.key("walk", mario.anim_frame & 0x07)
+	// Mario's own animation
+	u8 anim = mario.anim
+	if ((anim == 0xc3 || anim == 0xc4 || anim == 0xc5) && (level.framecounter & 0x7f) >= 0x7a)
+		return Mario.spriteKey(MARIO_SPRITES_BLINK, 0)
+	return Mario.spriteKey(anim, Mario.toInt(mario.animFrame))
 }
 
 
-// Hook into S3AIR's character rendering: replace Sonic's sprites with Mario's
+// Sprite rotation: along the ground for running (incl. loops), pitch for swimming and diving
+function u8 Mario.getSpriteAngle()
+{
+	s8 target = 0
+	if (Mario.isWaterAction(mario.action) || mario.action == MARIO_ACT_DIVE)
+	{
+		s8 p = s8(mario.pitch >> 8)
+		target = (char.flags & char.flag.FACING_LEFT) ? p : -p
+	}
+	else if ((char.flags & char.flag.IN_AIR) == 0)
+	{
+		s8 rot = s8(char.rotation)
+		if (abs(rot) > 0x10)
+			target = rot
+	}
+
+	s8 diff = target - mario.drawAngle
+	mario.drawAngle += clamp(diff, -8, 8)
+	return u8(mario.drawAngle)
+}
+
+
+// Replaces the drawing of Sonic with Mario
+function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s16 py, bool asSmallGhost)
+{
+	if (!(mario.active && character == CHARACTER_SONIC && variant == 0 && A0 == 0xffffb000))
+		return base.Standalone.drawCharacterSprite(character, variant, px, py, asSmallGhost)
+
+	// Sprite 0 means the character is invisible (e.g. inside a CNZ cannon)
+	if (char.animation.sprite == 0)
+		return base.Standalone.drawCharacterSprite(character, variant, px, py, asSmallGhost)
+
+	u64 key = Mario.getSpriteKey()
+	if (!Renderer.hasCustomSprite(key))
+		return base.Standalone.drawCharacterSprite(character, variant, px, py, asSmallGhost)
+
+	if (level.vertical_wrap == 0xff00)
+	{
+		py &= level.height.bitmask
+		if (py > move_area.bottom.target * 3/4 && move_area.bottom.target >= 0xe0)
+			py -= move_area.bottom.target
+	}
+
+	u8 flags = (char.flags & char.flag.FACING_LEFT) ? SPRITE_FLAG_FLIP_X : 0
+	if (global.inv_gravity)
+		flags |= SPRITE_FLAG_FLIP_Y
+	if (char.sprite_attributes & sprite_attribute.PRIORITY)
+		flags |= SPRITE_FLAG_PRIO
+
+	u8 angle = Mario.getSpriteAngle()
+	u16 renderQueue = 0xa000 - char.sprite_priority
+
+	if (asSmallGhost)
+	{
+		Renderer.drawCustomSprite(key, px, py, 0, flags | SPRITE_FLAG_PRIO, 0xa800, angle, 0xc0ffffff, 0x8000)
+	}
+	else
+	{
+		Renderer.drawCustomSprite(key, px, py, 0, flags, renderQueue, angle, 255)
+	}
+	return true
+}
+
+
+// Other places that ask for the character sprite (should not happen for Mario, but just in case)
 function u64 Standalone.getModdedAnimationSpriteKey(u8 character, u16 animationSpriteEx)
 {
-	if (mario.active && character == CHARACTER_SONIC && A0 == 0xffffb000)
+	if (mario.active && character == CHARACTER_SONIC && A0 == 0xffffb000 && char.animation.sprite != 0)
 	{
-		// Sonic's sprite 0 means the character is invisible (e.g. inside a CNZ cannon)
-		if (char.animation.sprite == 0)
-			return base.Standalone.getModdedAnimationSpriteKey(character, animationSpriteEx)
-
 		u64 key = Mario.getSpriteKey()
 		if (Renderer.hasCustomSprite(key))
 			return key

@@ -1,7 +1,9 @@
 # Mario 64 in Sonic 3 A.I.R.
 
 A Sonic 3 A.I.R. mod that adds **Mario from Super Mario 64** as an **extra character slot**.
-He plays in 2D with regular Sonic 3 controls (no 3D controls), but keeps his SM64 moveset.
+He plays in 2D with regular Sonic 3 controls (no 3D controls). His movement is a 2D port of
+Super Mario 64's own Mario code: the same actions, speeds, gravity, jump heights, slopes,
+slides and swimming, running at SM64's 30 actions per second.
 
 The mod contains no Nintendo assets. A small Python builder creates them from **your own
 Super Mario 64 (USA) ROM**: it renders Mario's sprites from the 3D model and animations
@@ -20,7 +22,7 @@ Steps:
    - **Windows:** double-click **`Build Mario Mod (Windows).bat`**, or drag your ROM onto it. When asked, drag the ROM into the window and press Enter.
    - **Linux / macOS:** run `./build_mario_mod.sh path/to/SuperMario64.z64`
    
-   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about 10 seconds and copies it straight into your S3AIR `mods` folder.
+   The builder installs the required Python packages (`numpy`, `pillow`, `soundfile`), creates the mod in about a minute and copies it straight into your S3AIR `mods` folder.
 3. Start Sonic 3 A.I.R., open **Mods** in the main menu and enable **Mario 64**.
 
 The built mod is also saved as `output/Mario64.zip`, in case you want to install it by hand
@@ -39,36 +41,52 @@ Save slots remember Mario. He plays Sonic's route through the game.
 
 Mod settings (**Options → Mods → Mario 64**):
 - **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" choice there play as Mario.
+- **World scale**: "Sonic 3" (default) scales Mario's movement so he covers ground about as fast as
+  Sonic does. "Mario 64" uses Mario's true size relative to the Sonic 3 levels (he is slower and jumps lower).
 - **Mario voice clips**: on/off.
 
 ## Controls (2D)
 
+The Genesis buttons map to Super Mario 64's buttons: **A/B = SM64's A** (jump),
+**C = SM64's B** (punch / kick / dive), **Down = SM64's Z**. On a keyboard with S3AIR's
+default layout, C is the **D** key; on a gamepad it's **X**.
+
 | Move | Input |
 |---|---|
-| Jump | Jump (A/B/C) |
-| Double / Triple Jump | Jump again right after landing while running (triple jump needs some speed) |
+| Walk / run | Left / Right (Mario accelerates like in SM64; reversing at speed makes him skid and turn) |
+| Jump, Double Jump, Triple Jump | Jump; Jump again right after landing (the triple jump needs running speed) |
 | Backflip | Hold **Down** (crouch) + Jump |
-| Long Jump | Run, hold **Down** + Jump (or Jump during a crouch slide) |
-| Crouch slide | Down while running (replaces Sonic's roll) |
-| Dive | Jump in mid-air. You land in a belly slide; Jump during it to roll out |
-| Wall Kick | Jump while touching a wall in mid-air (a dive into a wall also works) |
+| Side Flip | Turn around while running, then Jump while skidding |
+| Long Jump | Run, then **Down** (crouch slide) + Jump |
+| Wall Kick | Jump right after hitting a wall in mid-air |
+| Punch, punch, kick | **C** while standing (press repeatedly) |
+| Dive / belly slide | **C** while running or in mid-air; Jump or C during the slide to roll out |
+| Slide Kick | **C** during a crouch slide (Down while running) |
+| Jump Kick | **C** in mid-air while jumping slowly |
 | Ground Pound | **Down** in mid-air |
+| Crouch / crawl | Hold **Down** (and Left/Right to crawl) |
+| Swim | Underwater: Jump to swim a stroke, hold Jump to flutter kick, Up/Down to swim up/down. Jump at the surface to jump out |
 
-Mario defeats enemies by jumping on them or by attacking with any of his jumps, dives, slides
-and the ground pound. He has no Spindash, Drop Dash, Insta-Shield, Super Peel-Out, shield
-abilities or Super form.
+Steep slopes make Mario slide like in SM64 (butt slide), and falling from high up makes him
+land with a short stun.
+
+Mario defeats enemies by jumping on them or with his attacks: punches, kicks, dives, slides
+and the ground pound. Punches, kicks, dives and slides also break Sonic 3's breakable walls
+and rocks. He has no Spindash, Drop Dash, Insta-Shield, Super Peel-Out, shield abilities or
+Super form.
 
 ## How it works
 
 - `builder/rom.py` checks the ROM and reads Mario's data from it: the MIO0-compressed model segment, the animation table and the VADPCM voice samples (with a pure-Python decoder).
 - `builder/model.py` interprets the F3D display lists of Mario's high-poly model and rasterizes them with N64-style lighting and texturing.
-- `builder/sprites.py` renders about 90 frames from a side view turned slightly towards the camera. It supersamples them 4×, then downsamples, quantizes them to a shared 5-bit-per-channel palette and packs them into a sprite sheet.
+- `builder/sprites.py` renders about 450 frames of Mario's SM64 animations from a side view turned slightly towards the camera. It supersamples them 4×, then downsamples, quantizes them to a shared 5-bit-per-channel palette and packs them into a sprite sheet. It also writes the animation timing data (`mario_animdata.lemon`) for the scripts.
 - `builder/icons.py` draws the HUD lives icon, the "MARIO" results nameplate, the Data Select portrait and the mod icons.
 - `builder/audio.py` writes the voice clips as Ogg Vorbis files (through the `soundfile` package, or `ffmpeg` if that's installed instead).
 - `mod/scripts/*.lemon` is the script part of the mod:
   - `mario_dataselect.lemon` adds the extra slot. Save slots store character value `5` for Mario.
-  - `mario_moves.lemon` makes Mario use the Sonic character object (and Sonic's route) and replaces the moveset.
-  - `mario_render.lemon` replaces the player sprites via `Standalone.getModdedAnimationSpriteKey`, and also swaps the HUD lives icon and the results nameplate.
+  - `mario_actions.lemon` is the 2D port of SM64's Mario action code (`mario_actions_*.c`, `mario_step.c`, `mario.c` in the SM64 decompilation): every action with its physics, transitions and animations. Positions and speeds stay in SM64 units and are converted to Sonic 3 pixels with the world scale.
+  - `mario_core.lemon` hooks the actions into the Sonic character object (Mario plays Sonic's route). Sonic 3's own collision code moves him, so he works with loops, slopes, springs, water and all level objects.
+  - `mario_render.lemon` draws Mario's sprites instead of Sonic's (via `Standalone.drawCharacterSprite`), and also swaps the HUD lives icon and the results nameplate.
 
 `python make_release.py` packages the builder into `dist/` for a release.
 

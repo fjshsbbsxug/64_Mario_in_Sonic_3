@@ -4,8 +4,8 @@
 		"Name": "Mario 64",
 		"UniqueID": "mario64-extra-slot",
 		"Author": "Mario 64 in Sonic 3 contributors",
-		"Description": "Adds Mario from Super Mario 64 as an extra playable character slot (select him in Data Select, after Knuckles). 2D controls with Mario's moveset: triple jump, backflip, long jump, wall kick, dive and ground pound.",
-		"ModVersion": "1.0.0.0",
+		"Description": "Adds Mario from Super Mario 64 as an extra playable character slot (select him in Data Select, after Knuckles). He moves with a 2D port of Super Mario 64's own movement code: triple jump, backflip, side flip, long jump, wall kick, punches, dive, slide kick, ground pound and swimming.",
+		"ModVersion": "2.0.0.0",
 		"GameVersion": "24.02.10.0"
 	},
 	"Settings":
@@ -22,6 +22,18 @@
 				{
 					"0": "Only in Mario's Data Select slot",
 					"1": "Also in Act Select & Time Attack"
+				}
+			},
+			{
+				"InternalName": "MarioScale",
+				"DisplayName": "World scale",
+				"Category": "Mario 64",
+				"Variable": "mario.option.scale",
+				"DefaultValue": "0",
+				"Options":
+				{
+					"0": "Sonic 3 (Mario moves as fast as Sonic)",
+					"1": "Mario 64 (true to Mario's size)"
 				}
 			},
 			{

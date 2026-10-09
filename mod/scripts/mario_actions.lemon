@@ -1,0 +1,2356 @@
+//-------------------------------------------------------//
+// Mario: Super Mario 64's actions, ported to 2D         //
+//-------------------------------------------------------//
+
+// This follows mario.c, mario_actions_moving.c, mario_actions_stationary.c,
+// mario_actions_airborne.c, mario_actions_object.c and mario_actions_submerged.c
+// of the SM64 decompilation, with the analog stick reduced to left / right.
+//
+// Controls:  A = Jump (Genesis A / B),  B = Punch / Dive / Kick (Genesis C),  Z = Down
+
+// Ground actions
+constant u8 MARIO_ACT_IDLE                     = 1
+constant u8 MARIO_ACT_WALKING                  = 2
+constant u8 MARIO_ACT_DECELERATING             = 3
+constant u8 MARIO_ACT_BRAKING                  = 4
+constant u8 MARIO_ACT_BRAKING_STOP             = 5
+constant u8 MARIO_ACT_TURNING_AROUND           = 6
+constant u8 MARIO_ACT_FINISH_TURNING_AROUND    = 7
+constant u8 MARIO_ACT_START_CROUCHING          = 8
+constant u8 MARIO_ACT_CROUCHING                = 9
+constant u8 MARIO_ACT_STOP_CROUCHING           = 10
+constant u8 MARIO_ACT_START_CRAWLING           = 11
+constant u8 MARIO_ACT_CRAWLING                 = 12
+constant u8 MARIO_ACT_STOP_CRAWLING            = 13
+constant u8 MARIO_ACT_CROUCH_SLIDE             = 14
+constant u8 MARIO_ACT_PUNCHING                 = 15
+constant u8 MARIO_ACT_MOVE_PUNCHING            = 16
+constant u8 MARIO_ACT_JUMP_LAND                = 17
+constant u8 MARIO_ACT_JUMP_LAND_STOP           = 18
+constant u8 MARIO_ACT_DOUBLE_JUMP_LAND         = 19
+constant u8 MARIO_ACT_DOUBLE_JUMP_LAND_STOP    = 20
+constant u8 MARIO_ACT_TRIPLE_JUMP_LAND         = 21
+constant u8 MARIO_ACT_TRIPLE_JUMP_LAND_STOP    = 22
+constant u8 MARIO_ACT_BACKFLIP_LAND            = 23
+constant u8 MARIO_ACT_BACKFLIP_LAND_STOP       = 24
+constant u8 MARIO_ACT_SIDE_FLIP_LAND           = 25
+constant u8 MARIO_ACT_SIDE_FLIP_LAND_STOP      = 26
+constant u8 MARIO_ACT_LONG_JUMP_LAND           = 27
+constant u8 MARIO_ACT_LONG_JUMP_LAND_STOP      = 28
+constant u8 MARIO_ACT_FREEFALL_LAND            = 29
+constant u8 MARIO_ACT_FREEFALL_LAND_STOP       = 30
+constant u8 MARIO_ACT_DIVE_SLIDE               = 31
+constant u8 MARIO_ACT_STOMACH_SLIDE            = 32
+constant u8 MARIO_ACT_STOMACH_SLIDE_STOP       = 33
+constant u8 MARIO_ACT_GROUND_POUND_LAND        = 34
+constant u8 MARIO_ACT_BUTT_SLIDE               = 35
+constant u8 MARIO_ACT_BUTT_SLIDE_STOP          = 36
+constant u8 MARIO_ACT_SLIDE_KICK_SLIDE         = 37
+constant u8 MARIO_ACT_SLIDE_KICK_SLIDE_STOP    = 38
+constant u8 MARIO_ACT_BACKWARD_GROUND_KB       = 39
+constant u8 MARIO_ACT_GROUND_BONK              = 40
+constant u8 MARIO_ACT_FORCED_ROLL              = 41		// Rolling forced by Sonic 3 objects (tubes)
+constant u8 MARIO_ACT_DEAD                     = 42
+
+// Airborne actions
+constant u8 MARIO_ACT_JUMP                     = 64
+constant u8 MARIO_ACT_DOUBLE_JUMP              = 65
+constant u8 MARIO_ACT_TRIPLE_JUMP              = 66
+constant u8 MARIO_ACT_BACKFLIP                 = 67
+constant u8 MARIO_ACT_SIDE_FLIP                = 68
+constant u8 MARIO_ACT_WALL_KICK_AIR            = 69
+constant u8 MARIO_ACT_LONG_JUMP                = 70
+constant u8 MARIO_ACT_FREEFALL                 = 71
+constant u8 MARIO_ACT_DIVE                     = 72
+constant u8 MARIO_ACT_JUMP_KICK                = 73
+constant u8 MARIO_ACT_GROUND_POUND             = 74
+constant u8 MARIO_ACT_FORWARD_ROLLOUT          = 75
+constant u8 MARIO_ACT_AIR_HIT_WALL             = 76
+constant u8 MARIO_ACT_SOFT_BONK                = 77
+constant u8 MARIO_ACT_BACKWARD_AIR_KB          = 78
+constant u8 MARIO_ACT_SLIDE_KICK               = 79
+constant u8 MARIO_ACT_BUTT_SLIDE_AIR           = 80
+constant u8 MARIO_ACT_LAUNCHED                 = 81		// Launched by a Sonic 3 object (springs etc.)
+constant u8 MARIO_ACT_HURT                     = 82		// Sonic 3's hurt state
+constant u8 MARIO_ACT_WATER_JUMP               = 83
+
+// Water actions
+constant u8 MARIO_ACT_WATER_IDLE               = 100
+constant u8 MARIO_ACT_BREASTSTROKE             = 101
+constant u8 MARIO_ACT_SWIMMING_END             = 102
+constant u8 MARIO_ACT_FLUTTER_KICK             = 103
+constant u8 MARIO_ACT_WATER_ACTION_END         = 104
+constant u8 MARIO_ACT_WATER_PLUNGE             = 105
+
+
+function bool Mario.isAirAction(u8 act)
+{
+	return (act >= 64 && act < 100)
+}
+
+function bool Mario.isWaterAction(u8 act)
+{
+	return (act >= 100)
+}
+
+function bool Mario.isGroundStationaryAction(u8 act)
+{
+	return (act == MARIO_ACT_IDLE || act == MARIO_ACT_CROUCHING || act == MARIO_ACT_START_CROUCHING || act == MARIO_ACT_STOP_CROUCHING)
+}
+
+function bool Mario.controlsJumpHeight(u8 act)
+{
+	return (act == MARIO_ACT_JUMP || act == MARIO_ACT_DOUBLE_JUMP || act == MARIO_ACT_WALL_KICK_AIR || act == MARIO_ACT_LONG_JUMP || act == MARIO_ACT_BUTT_SLIDE_AIR)
+}
+
+
+
+//-------------------------------------------------------//
+// Animation (SM64 animation playback at 30 Hz)          //
+//-------------------------------------------------------//
+
+function void Mario.setAnim(u8 id)
+{
+	if (mario.anim != id)
+	{
+		mario.anim = id
+		mario.animFrame = float(MarioAnim.START[id])
+		mario.animJustSet = 1
+	}
+	mario.animAccel = 1.0f
+}
+
+function void Mario.setAnimWithAccel(u8 id, float accel)
+{
+	Mario.setAnim(id)
+	mario.animAccel = accel
+}
+
+function void Mario.setAnimToFrame(u16 frame)
+{
+	mario.animFrame = float(frame)
+	mario.animJustSet = 1
+}
+
+function s32 Mario.animFrameInt()
+{
+	return Mario.toInt(mario.animFrame)
+}
+
+function bool Mario.isAnimAtEnd()
+{
+	return Mario.toInt(mario.animFrame) + 1 >= s32(MarioAnim.LOOP_END[mario.anim])
+}
+
+function bool Mario.isAnimPastEnd()
+{
+	return Mario.toInt(mario.animFrame) >= s32(MarioAnim.LOOP_END[mario.anim]) - 2
+}
+
+function void Mario.tickAnimation()
+{
+	if (mario.animJustSet)
+	{
+		mario.animJustSet = 0
+		return
+	}
+
+	float loopEnd = float(MarioAnim.LOOP_END[mario.anim])
+	float f = mario.animFrame + mario.animAccel
+	if (f >= loopEnd)
+	{
+		if (MarioAnim.NO_LOOP[mario.anim])
+		{
+			f = loopEnd - 1.0f
+		}
+		else
+		{
+			float loopStart = float(MarioAnim.LOOP_START[mario.anim])
+			f = loopStart + (f - loopEnd)
+			if (f >= loopEnd || f < loopStart)
+				f = loopStart
+		}
+	}
+	mario.animFrame = f
+}
+
+
+
+//-------------------------------------------------------//
+// Setting actions (set_mario_action & friends)          //
+//-------------------------------------------------------//
+
+function void Mario.setAction(u8 act, u16 arg)
+{
+	// set_mario_action_airborne
+	if (Mario.isAirAction(act))
+	{
+		Mario.initAirborneAction(act, arg)
+		if (act != MARIO_ACT_LAUNCHED && act != MARIO_ACT_HURT)
+			mario.jumpFlag = 1
+	}
+	else
+	{
+		mario.jumpFlag = 0
+	}
+
+	// set_mario_action_moving
+	if (act == MARIO_ACT_WALKING)
+	{
+		float mag = min(mario.intendedMag, 8.0f)
+		if (mario.fwd >= 0.0f && mario.fwd < mag)
+			Mario.setForwardVel(mag)
+	}
+
+	if (act != mario.action)
+		mario.voicePlayed = 0
+	if (!Mario.isAirAction(act) || act == MARIO_ACT_SIDE_FLIP)
+		mario.gfxFlip = (act == MARIO_ACT_SIDE_FLIP) ? 1 : 0
+	if (act != MARIO_ACT_DIVE && act != MARIO_ACT_DIVE_SLIDE && !Mario.isWaterAction(act))
+		mario.pitch = 0
+
+	mario.prevAction = mario.action
+	mario.action = act
+	mario.actionArg = arg
+	mario.actionState = 0
+	mario.actionTimer = 0
+}
+
+
+function void Mario.setYVelBasedOnFSpeed(float initialVelY, float multiplier)
+{
+	mario.velY = initialVelY + mario.fwd * multiplier
+}
+
+
+function void Mario.initAirborneAction(u8 act, u16 arg)
+{
+	if (act == MARIO_ACT_DOUBLE_JUMP)
+	{
+		Mario.setYVelBasedOnFSpeed(52.0f, 0.25f)
+		mario.fwd *= 0.8f
+	}
+	else if (act == MARIO_ACT_BACKFLIP)
+	{
+		mario.fwd = -16.0f
+		Mario.setYVelBasedOnFSpeed(62.0f, 0.0f)
+	}
+	else if (act == MARIO_ACT_TRIPLE_JUMP)
+	{
+		Mario.setYVelBasedOnFSpeed(69.0f, 0.0f)
+		mario.fwd *= 0.8f
+	}
+	else if (act == MARIO_ACT_JUMP)
+	{
+		Mario.setYVelBasedOnFSpeed(42.0f, 0.25f)
+		mario.fwd *= 0.8f
+	}
+	else if (act == MARIO_ACT_WALL_KICK_AIR)
+	{
+		Mario.setYVelBasedOnFSpeed(62.0f, 0.0f)
+		if (mario.fwd < 24.0f)
+			mario.fwd = 24.0f
+		mario.wallKickTimer = 0
+	}
+	else if (act == MARIO_ACT_SIDE_FLIP)
+	{
+		Mario.setYVelBasedOnFSpeed(62.0f, 0.0f)
+		mario.fwd = 8.0f
+		mario.yaw = mario.intendedYaw
+	}
+	else if (act == MARIO_ACT_DIVE)
+	{
+		Mario.setForwardVel(min(mario.fwd + 15.0f, 48.0f))
+	}
+	else if (act == MARIO_ACT_LONG_JUMP)
+	{
+		Mario.setYVelBasedOnFSpeed(30.0f, 0.0f)
+		mario.longJumpSlow = (mario.fwd > 16.0f) ? 0 : 1
+		mario.fwd *= 1.5f
+		if (mario.fwd > 48.0f)
+			mario.fwd = 48.0f
+	}
+	else if (act == MARIO_ACT_SLIDE_KICK)
+	{
+		mario.velY = 12.0f
+		if (mario.fwd < 32.0f)
+			mario.fwd = 32.0f
+	}
+	else if (act == MARIO_ACT_JUMP_KICK)
+	{
+		mario.velY = 20.0f
+	}
+	else if (act == MARIO_ACT_WATER_JUMP)
+	{
+		mario.velY = 62.0f
+	}
+}
+
+
+// set_jump_from_landing
+function void Mario.setJumpFromLanding()
+{
+	if (mario.doubleJumpTimer == 0)
+	{
+		Mario.setAction(MARIO_ACT_JUMP, 0)
+	}
+	else
+	{
+		u8 prev = mario.action
+		if (prev == MARIO_ACT_JUMP_LAND || prev == MARIO_ACT_FREEFALL_LAND || prev == MARIO_ACT_SIDE_FLIP_LAND_STOP)
+		{
+			Mario.setAction(MARIO_ACT_DOUBLE_JUMP, 0)
+		}
+		else if (prev == MARIO_ACT_DOUBLE_JUMP_LAND)
+		{
+			Mario.setAction((mario.fwd > 20.0f) ? MARIO_ACT_TRIPLE_JUMP : MARIO_ACT_JUMP, 0)
+		}
+		else
+		{
+			// The action before the current landing action counts as well
+			prev = mario.prevAction
+			if (prev == MARIO_ACT_JUMP_LAND || prev == MARIO_ACT_FREEFALL_LAND || prev == MARIO_ACT_SIDE_FLIP_LAND_STOP)
+				Mario.setAction(MARIO_ACT_DOUBLE_JUMP, 0)
+			else if (prev == MARIO_ACT_DOUBLE_JUMP_LAND)
+				Mario.setAction((mario.fwd > 20.0f) ? MARIO_ACT_TRIPLE_JUMP : MARIO_ACT_JUMP, 0)
+			else
+				Mario.setAction(MARIO_ACT_JUMP, 0)
+		}
+	}
+	mario.doubleJumpTimer = 0
+}
+
+
+function void Mario.setTripleJumpAction()
+{
+	Mario.setAction((mario.fwd > 20.0f) ? MARIO_ACT_TRIPLE_JUMP : MARIO_ACT_JUMP, 0)
+}
+
+
+function void Mario.beginSliding()
+{
+	Mario.setAction(Mario.facingDownhill() ? MARIO_ACT_BUTT_SLIDE : MARIO_ACT_STOMACH_SLIDE, 0)
+	mario.slideVel = mario.fwd * Mario.sins(mario.yaw)
+}
+
+
+function void Mario.beginWalkingAction(float forwardVel, u8 act)
+{
+	mario.yaw = mario.intendedYaw
+	Mario.setForwardVel(forwardVel)
+	Mario.setAction(act, 0)
+}
+
+
+// check_common_action_exits
+function bool Mario.checkCommonActionExits()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_JUMP, 0)
+		return true
+	}
+	if (mario.inAnalog)
+	{
+		Mario.setAction(MARIO_ACT_WALKING, 0)
+		return true
+	}
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	Mario.setAction(MARIO_ACT_IDLE, 0)
+	return true
+}
+
+
+// should_begin_sliding
+function bool Mario.shouldBeginSliding()
+{
+	if (mario.inAboveSlide)
+	{
+		return (mario.fwd <= -1.0f || Mario.facingDownhill())
+	}
+	return false
+}
+
+
+
+//-------------------------------------------------------//
+// Ground physics                                        //
+//-------------------------------------------------------//
+
+function void Mario.applySlopeAccel()
+{
+	if (Mario.floorIsSlope())
+	{
+		float slopeAccel = 1.7f * Mario.floorSteepness()
+		if (Mario.facingDownhill())
+			mario.fwd += slopeAccel
+		else
+			mario.fwd -= slopeAccel
+	}
+	mario.slideVel = mario.fwd * Mario.sins(mario.yaw)
+}
+
+
+function bool Mario.applySlopeDecel(float decelCoef)
+{
+	float decel = decelCoef * 2.0f
+	mario.fwd = Mario.approachF(mario.fwd, 0.0f, decel, decel)
+	bool stopped = (mario.fwd == 0.0f)
+	Mario.applySlopeAccel()
+	return stopped
+}
+
+
+function bool Mario.applyLandingAccel(float frictionFactor)
+{
+	bool stopped = false
+	Mario.applySlopeAccel()
+	if (!Mario.floorIsSlope())
+	{
+		mario.fwd *= frictionFactor
+		if (mario.fwd * mario.fwd < 1.0f)
+		{
+			Mario.setForwardVel(0.0f)
+			stopped = true
+		}
+	}
+	return stopped
+}
+
+
+function void Mario.updateWalkingSpeed()
+{
+	float maxTargetSpeed = 32.0f
+	float targetSpeed = min(mario.intendedMag, maxTargetSpeed)
+
+	if (mario.fwd <= 0.0f)
+	{
+		mario.fwd += 1.1f
+	}
+	else if (mario.fwd <= targetSpeed)
+	{
+		mario.fwd += 1.1f - mario.fwd / 43.0f
+	}
+	else if (Mario.floorSteepness() < 0.3122f)		// floor normal.y >= 0.95
+	{
+		mario.fwd -= 1.0f
+	}
+
+	if (mario.fwd > 48.0f)
+		mario.fwd = 48.0f
+
+	mario.yaw = mario.intendedYaw - Mario.approachS(s16(mario.intendedYaw - mario.yaw), 0, 0x800, 0x800)
+	Mario.applySlopeAccel()
+}
+
+
+function bool Mario.updateDeceleratingSpeed()
+{
+	mario.fwd = Mario.approachF(mario.fwd, 0.0f, 1.0f, 1.0f)
+	Mario.setForwardVel(mario.fwd)
+	return (mario.fwd == 0.0f)
+}
+
+
+// update_sliding, reduced to one axis
+function bool Mario.updateSliding(float stopSpeed)
+{
+	float forward = 0.0f
+	if (mario.inAnalog)
+	{
+		float slideDir = (mario.slideVel < 0.0f) ? -1.0f : 1.0f
+		forward = (Mario.sins(mario.intendedYaw) * slideDir >= 0.0f) ? 1.0f : -1.0f
+		if (forward < 0.0f && mario.fwd >= 0.0f)
+			forward *= 0.5f + 0.5f * mario.fwd / 100.0f
+	}
+
+	float accel = 7.0f
+	float lossFactor = mario.intendedMag / 32.0f * forward * 0.02f + 0.92f
+	if (Mario.floorIsSlippery())
+	{
+		accel = 8.0f
+		lossFactor = mario.intendedMag / 32.0f * forward * 0.02f + 0.96f
+	}
+
+	mario.slideVel += accel * Mario.floorSteepness() * float(Mario.downhillSign())
+	mario.slideVel *= lossFactor
+	if (mario.slideVel > 100.0f)
+		mario.slideVel = 100.0f
+	if (mario.slideVel < -100.0f)
+		mario.slideVel = -100.0f
+
+	// Forward velocity is positive if facing the sliding direction
+	mario.fwd = abs(mario.slideVel)
+	if ((mario.slideVel < 0.0f) != (Mario.sins(mario.yaw) < 0.0f))
+		mario.fwd = -mario.fwd
+
+	if (!Mario.floorIsSlope() && mario.fwd * mario.fwd < stopSpeed * stopSpeed)
+	{
+		Mario.setForwardVel(0.0f)
+		return true
+	}
+	return false
+}
+
+
+// common_slide_action (the ground step part)
+function void Mario.commonSlideAction(u8 endAction, u8 anim)
+{
+	if (mario.groundStepHitWall && !Mario.floorIsSlippery())
+	{
+		Mario.slideBonk(MARIO_ACT_GROUND_BONK, endAction)
+		return
+	}
+	Mario.setAnim(anim)
+}
+
+
+// common_slide_action_with_jump
+function bool Mario.commonSlideActionWithJump(u8 stopAction, u8 jumpAction, u8 anim)
+{
+	if (mario.actionTimer == 5)
+	{
+		if (mario.inAPressed)
+		{
+			Mario.setAction(jumpAction, 0)
+			return true
+		}
+	}
+	else
+	{
+		++mario.actionTimer
+	}
+
+	if (Mario.updateSliding(4.0f))
+	{
+		Mario.setAction(stopAction, 0)
+		return true
+	}
+
+	Mario.commonSlideAction(stopAction, anim)
+	return false
+}
+
+
+function void Mario.slideBonk(u8 fastAction, u8 slowAction)
+{
+	if (mario.fwd > 16.0f)
+	{
+		Mario.setForwardVel(-mario.fwd)
+		Mario.setAction(fastAction, 0)
+		Mario.voice("mario_doh")
+	}
+	else
+	{
+		Mario.setForwardVel(0.0f)
+		Mario.setAction(slowAction, 0)
+	}
+}
+
+
+// check_ground_dive_or_punch
+function bool Mario.checkGroundDiveOrPunch()
+{
+	if (mario.inBPressed)
+	{
+		// Speed kick / dive from running
+		if (mario.fwd >= 29.0f && mario.inAnalog)
+		{
+			mario.velY = 20.0f
+			Mario.setAction(MARIO_ACT_DIVE, 1)
+			mario.velY = 20.0f
+			return true
+		}
+		Mario.setAction(MARIO_ACT_MOVE_PUNCHING, 0)
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.beginBrakingAction()
+{
+	if (mario.fwd >= 16.0f && Mario.floorSteepness() < 0.9848f)
+	{
+		Mario.setAction(MARIO_ACT_BRAKING, 0)
+	}
+	else
+	{
+		Mario.setAction(MARIO_ACT_DECELERATING, 0)
+	}
+	return true
+}
+
+
+
+//-------------------------------------------------------//
+// Action dispatch                                       //
+//-------------------------------------------------------//
+
+function void Mario.executeAction()
+{
+	// Actions can switch to other actions which then run in the same tick, like in SM64
+	for (u8 loops = 0; loops < 4; ++loops)
+	{
+		u8 act = mario.action
+		bool cancel = false
+		if (Mario.isWaterAction(act))
+			cancel = Mario.executeWaterAction(act)
+		else if (Mario.isAirAction(act))
+			cancel = Mario.executeAirAction(act)
+		else
+			cancel = Mario.executeGroundAction(act)
+
+		if (!cancel)
+			break
+		if (Mario.isAirAction(mario.action) != Mario.isAirAction(act))
+			break		// Switched between ground and air: continue with the next tick
+	}
+}
+
+
+
+//-------------------------------------------------------//
+// Stationary actions                                    //
+//-------------------------------------------------------//
+
+function bool Mario.checkCommonIdleCancels()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_JUMP, 0)
+		return true
+	}
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAnalog)
+	{
+		mario.yaw = mario.intendedYaw
+		Mario.setAction(MARIO_ACT_WALKING, 0)
+		return true
+	}
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_PUNCHING, 0)
+		return true
+	}
+	if (mario.inZDown)
+	{
+		Mario.setAction(MARIO_ACT_START_CROUCHING, 0)
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.actIdle()
+{
+	if (Mario.checkCommonIdleCancels())
+		return true
+
+	if (mario.actionState >= 3)
+		mario.actionState = 0
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim((mario.actionState == 0) ? 0xc3 : (mario.actionState == 1) ? 0xc4 : 0xc5)
+	if (Mario.isAnimAtEnd())
+	{
+		++mario.actionState
+		if (mario.actionState >= 3)
+			mario.actionState = 0
+	}
+	return false
+}
+
+
+function bool Mario.actCrouching()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_BACKFLIP, 0)
+		return true
+	}
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (!mario.inZDown)
+	{
+		Mario.setAction(MARIO_ACT_STOP_CROUCHING, 0)
+		return true
+	}
+	if (mario.inAnalog)
+	{
+		mario.yaw = mario.intendedYaw
+		Mario.setAction(MARIO_ACT_START_CRAWLING, 0)
+		return true
+	}
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_PUNCHING, 9)
+		return true
+	}
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(0x98)
+	return false
+}
+
+
+function bool Mario.actStartCrouching()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_BACKFLIP, 0)
+		return true
+	}
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(0x97)
+	if (Mario.isAnimPastEnd())
+		Mario.setAction(MARIO_ACT_CROUCHING, 0)
+	return false
+}
+
+
+function bool Mario.actStopCrouching()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_BACKFLIP, 0)
+		return true
+	}
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(0x96)
+	if (Mario.isAnimPastEnd())
+		Mario.setAction(MARIO_ACT_IDLE, 0)
+	return false
+}
+
+
+function bool Mario.actStartCrawling()
+{
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(0x9b)
+	if (Mario.isAnimPastEnd())
+		Mario.setAction(MARIO_ACT_CRAWLING, 0)
+	return false
+}
+
+
+function bool Mario.actStopCrawling()
+{
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(0x9a)
+	if (Mario.isAnimPastEnd())
+		Mario.setAction(MARIO_ACT_CROUCHING, 0)
+	return false
+}
+
+
+function bool Mario.actCrawling()
+{
+	if (Mario.shouldBeginSliding())
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_JUMP, 0)
+		return true
+	}
+	if (Mario.checkGroundDiveOrPunch())
+		return true
+	if (mario.inUnknown5 || !mario.inZDown)
+	{
+		Mario.setAction(MARIO_ACT_STOP_CRAWLING, 0)
+		return true
+	}
+
+	mario.intendedMag *= 0.1f
+	Mario.updateWalkingSpeed()
+	if (mario.groundStepHitWall && mario.fwd > 10.0f)
+		Mario.setForwardVel(10.0f)
+
+	Mario.setAnimWithAccel(0x99, mario.intendedMag * 2.0f)
+	return false
+}
+
+
+// check_common_landing_cancels (for the "landing stop" actions)
+function bool Mario.checkCommonLandingCancels(u8 jumpAction)
+{
+	if (mario.inAPressed)
+	{
+		if (jumpAction == 0)
+			Mario.setJumpFromLanding()
+		else
+			Mario.setAction(jumpAction, 0)
+		return true
+	}
+	if (mario.inAnalog || mario.inAboveSlide)
+	{
+		return Mario.checkCommonActionExits()
+	}
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_PUNCHING, 0)
+		return true
+	}
+	return false
+}
+
+
+// landing_step / stopping_step
+function void Mario.landingStep(u8 anim, u8 nextAction)
+{
+	Mario.setForwardVel(0.0f)
+	Mario.setAnim(anim)
+	if (Mario.isAnimAtEnd())
+		Mario.setAction(nextAction, 0)
+}
+
+
+function bool Mario.actLandingStop(u8 jumpAction, u8 anim, u8 nextAction)
+{
+	if (Mario.checkCommonLandingCancels(jumpAction))
+		return true
+	Mario.landingStep(anim, nextAction)
+	return false
+}
+
+
+function bool Mario.actBrakingStop()
+{
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_PUNCHING, 0)
+		return true
+	}
+	if (mario.inAnalog || mario.inAPressed || mario.inAboveSlide)
+		return Mario.checkCommonActionExits()
+
+	Mario.landingStep(0x10, MARIO_ACT_IDLE)
+	return false
+}
+
+
+function bool Mario.actGroundPoundLand()
+{
+	mario.actionState = 1
+	if (mario.inAboveSlide)
+	{
+		Mario.setAction(MARIO_ACT_BUTT_SLIDE, 0)
+		return true
+	}
+	Mario.landingStep(0x3a, MARIO_ACT_BUTT_SLIDE_STOP)
+	return false
+}
+
+
+function bool Mario.actButtSlideStop()
+{
+	if (mario.inAnalog || mario.inAPressed || mario.inAboveSlide)
+		return Mario.checkCommonActionExits()
+	Mario.landingStep(0x8f, MARIO_ACT_IDLE)
+	return false
+}
+
+
+function bool Mario.actStomachSlideStop()
+{
+	if (mario.inAnalog || mario.inAPressed || mario.inAboveSlide)
+		return Mario.checkCommonActionExits()
+	Mario.landingStep(0x5a, MARIO_ACT_IDLE)
+	return false
+}
+
+
+function bool Mario.actSlideKickSlideStop()
+{
+	Mario.landingStep(0x8d, MARIO_ACT_CROUCHING)
+	return false
+}
+
+
+// Punch sequence, see mario_update_punch_sequence
+function void Mario.updatePunchSequence(bool moving)
+{
+	u8 endAction = moving ? MARIO_ACT_WALKING : MARIO_ACT_IDLE
+	u8 arg = mario.actionArg
+
+	if (arg == 0 || arg == 9)
+	{
+		Mario.voice("mario_punchyah")
+		arg = 1
+	}
+
+	if (arg == 1)
+	{
+		Mario.setAnim(0x67)
+		arg = Mario.isAnimPastEnd() ? 2 : 1
+	}
+	else if (arg == 2)
+	{
+		Mario.setAnim(0x69)
+		if (mario.inBPressed)
+			arg = 3
+		else if (Mario.isAnimAtEnd())
+			Mario.setAction(endAction, 0)
+	}
+	else if (arg == 3 || arg == 4)
+	{
+		if (arg == 3)
+		{
+			mario.voicePlayed = 0
+			Mario.voice("mario_wah")
+		}
+		Mario.setAnim(0x68)
+		arg = Mario.isAnimPastEnd() ? 5 : 4
+	}
+	else if (arg == 5)
+	{
+		Mario.setAnim(0x6a)
+		if (mario.inBPressed)
+			arg = 6
+		else if (Mario.isAnimAtEnd())
+			Mario.setAction(endAction, 0)
+	}
+	else if (arg == 6 || arg == 7)
+	{
+		if (arg == 6)
+		{
+			mario.voicePlayed = 0
+			Mario.voice("mario_punchhoo")
+		}
+		arg = 7
+		Mario.setAnim(0x66)
+		if (Mario.isAnimAtEnd())
+			Mario.setAction(endAction, 0)
+	}
+
+	if (mario.action == MARIO_ACT_PUNCHING || mario.action == MARIO_ACT_MOVE_PUNCHING)
+		mario.actionArg = arg
+}
+
+
+constant array<u8> Mario.PUNCH_FORWARD_VELOCITIES = { 0, 1, 1, 2, 3, 5, 7, 10 }
+
+function bool Mario.actPunching()
+{
+	if (mario.inAnalog || mario.inAPressed || mario.inAboveSlide)
+		return Mario.checkCommonActionExits()
+
+	if (mario.actionState == 0 && mario.inADown)
+	{
+		Mario.setAction(MARIO_ACT_JUMP_KICK, 0)
+		return true
+	}
+
+	mario.actionState = 1
+	if (mario.actionArg == 0)
+		mario.actionTimer = 7
+
+	Mario.setForwardVel(float(Mario.PUNCH_FORWARD_VELOCITIES[min(mario.actionTimer, 7)]))
+	if (mario.actionTimer > 0)
+		--mario.actionTimer
+
+	Mario.updatePunchSequence(false)
+	return false
+}
+
+
+function bool Mario.actMovePunching()
+{
+	if (Mario.shouldBeginSliding())
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.actionState == 0 && mario.inADown)
+	{
+		Mario.setAction(MARIO_ACT_JUMP_KICK, 0)
+		return true
+	}
+	mario.actionState = 1
+
+	Mario.updatePunchSequence(true)
+
+	if (mario.fwd >= 0.0f)
+	{
+		Mario.applySlopeDecel(0.5f)
+	}
+	else
+	{
+		mario.fwd += 8.0f
+		if (mario.fwd >= 0.0f)
+			mario.fwd = 0.0f
+		Mario.applySlopeAccel()
+	}
+	return false
+}
+
+
+
+//-------------------------------------------------------//
+// Moving actions                                        //
+//-------------------------------------------------------//
+
+// anim_and_audio_for_walk
+function void Mario.animForWalk()
+{
+	float speed = max(mario.intendedMag, mario.fwd)
+	if (speed < 4.0f)
+		speed = 4.0f
+
+	for (u8 i = 0; i < 4; ++i)
+	{
+		if (mario.actionTimer == 0)
+		{
+			if (speed > 8.0f)
+			{
+				mario.actionTimer = 2
+				continue
+			}
+			Mario.setAnimWithAccel(0xca, max(speed / 4.0f, 0.0625f))
+			if (Mario.animFrameInt() > 23)
+				mario.actionTimer = 2
+			return
+		}
+		else if (mario.actionTimer == 1)
+		{
+			if (speed > 8.0f)
+			{
+				mario.actionTimer = 2
+				continue
+			}
+			Mario.setAnimWithAccel(0x92, max(speed, 0.0625f))
+			return
+		}
+		else if (mario.actionTimer == 2)
+		{
+			if (speed < 5.0f)
+			{
+				mario.actionTimer = 1
+				continue
+			}
+			if (speed > 22.0f)
+			{
+				mario.actionTimer = 3
+				continue
+			}
+			Mario.setAnimWithAccel(0x48, speed / 4.0f)
+			return
+		}
+		else
+		{
+			if (speed < 18.0f)
+			{
+				mario.actionTimer = 2
+				continue
+			}
+			Mario.setAnimWithAccel(0x72, speed / 4.0f)
+			return
+		}
+	}
+}
+
+
+function bool Mario.actWalking()
+{
+	if (Mario.shouldBeginSliding())
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAPressed)
+	{
+		Mario.setJumpFromLanding()
+		return true
+	}
+	if (Mario.checkGroundDiveOrPunch())
+		return true
+	if (mario.inUnknown5)
+		return Mario.beginBrakingAction()
+	if (Mario.analogStickHeldBack() && mario.fwd >= 16.0f)
+	{
+		Mario.setAction(MARIO_ACT_TURNING_AROUND, 0)
+		return true
+	}
+	if (mario.inZPressed)
+	{
+		Mario.setAction(MARIO_ACT_CROUCH_SLIDE, 0)
+		return true
+	}
+
+	mario.actionState = 0
+	Mario.updateWalkingSpeed()
+
+	if (mario.groundStepHitWall)
+	{
+		// push_or_sidle_wall
+		if (mario.fwd > 6.0f)
+			Mario.setForwardVel(6.0f)
+		Mario.setAnim(0x6c)
+		mario.actionTimer = 0
+	}
+	else
+	{
+		Mario.animForWalk()
+	}
+	return false
+}
+
+
+function bool Mario.actDecelerating()
+{
+	if (Mario.shouldBeginSliding())
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAPressed)
+	{
+		Mario.setJumpFromLanding()
+		return true
+	}
+	if (Mario.checkGroundDiveOrPunch())
+		return true
+	if (mario.inAnalog)
+	{
+		Mario.setAction(MARIO_ACT_WALKING, 0)
+		return true
+	}
+	if (mario.inZPressed)
+	{
+		Mario.setAction(MARIO_ACT_CROUCH_SLIDE, 0)
+		return true
+	}
+
+	if (Mario.updateDeceleratingSpeed())
+	{
+		Mario.setAction(MARIO_ACT_IDLE, 0)
+		return true
+	}
+	if (mario.groundStepHitWall)
+		Mario.setForwardVel(0.0f)
+
+	Mario.setAnimWithAccel(0x48, max(mario.fwd / 4.0f, 0.0625f))
+	return false
+}
+
+
+function bool Mario.actBraking()
+{
+	if (mario.inAnalog || mario.inAPressed || mario.inAboveSlide)
+		return Mario.checkCommonActionExits()
+
+	if (Mario.applySlopeDecel(2.0f))
+	{
+		Mario.setAction(MARIO_ACT_BRAKING_STOP, 0)
+		return true
+	}
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_MOVE_PUNCHING, 0)
+		return true
+	}
+	if (mario.groundStepHitWall)
+	{
+		Mario.slideBonk(MARIO_ACT_BACKWARD_GROUND_KB, MARIO_ACT_BRAKING_STOP)
+		return true
+	}
+	Mario.setAnim(0x0f)
+	return false
+}
+
+
+function bool Mario.actTurningAround()
+{
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_SIDE_FLIP, 0)
+		Mario.jumpVoice()
+		return true
+	}
+	if (mario.inUnknown5)
+	{
+		Mario.setAction(MARIO_ACT_BRAKING, 0)
+		return true
+	}
+	if (!Mario.analogStickHeldBack())
+	{
+		Mario.setAction(MARIO_ACT_WALKING, 0)
+		return true
+	}
+	if (Mario.applySlopeDecel(2.0f))
+	{
+		Mario.beginWalkingAction(8.0f, MARIO_ACT_FINISH_TURNING_AROUND)
+		return true
+	}
+
+	if (mario.fwd >= 18.0f)
+	{
+		Mario.setAnim(0xbc)
+	}
+	else
+	{
+		Mario.setAnim(0xbd)
+		if (Mario.isAnimAtEnd())
+		{
+			if (mario.fwd > 0.0f)
+				Mario.beginWalkingAction(-mario.fwd, MARIO_ACT_WALKING)
+			else
+				Mario.beginWalkingAction(8.0f, MARIO_ACT_WALKING)
+			return true
+		}
+	}
+	return false
+}
+
+
+function bool Mario.actFinishTurningAround()
+{
+	if (mario.inAboveSlide)
+	{
+		Mario.beginSliding()
+		return true
+	}
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_SIDE_FLIP, 0)
+		Mario.jumpVoice()
+		return true
+	}
+	Mario.updateWalkingSpeed()
+	Mario.setAnim(0xbd)
+	mario.gfxFlip = 1
+	if (Mario.isAnimAtEnd())
+	{
+		mario.gfxFlip = 0
+		Mario.setAction(MARIO_ACT_WALKING, 0)
+	}
+	return false
+}
+
+
+function bool Mario.actCrouchSlide()
+{
+	if (mario.inAboveSlide)
+	{
+		Mario.setAction(MARIO_ACT_BUTT_SLIDE, 0)
+		return true
+	}
+
+	if (mario.actionTimer < 30)
+	{
+		++mario.actionTimer
+		if (mario.inAPressed && mario.fwd > 10.0f)
+		{
+			Mario.setAction(MARIO_ACT_LONG_JUMP, 0)
+			Mario.voice("mario_yahoo")
+			return true
+		}
+	}
+
+	if (mario.inBPressed)
+	{
+		if (mario.fwd >= 10.0f)
+		{
+			Mario.setAction(MARIO_ACT_SLIDE_KICK, 0)
+			Mario.voice("mario_hoohoo")
+		}
+		else
+		{
+			Mario.setAction(MARIO_ACT_MOVE_PUNCHING, 9)
+		}
+		return true
+	}
+
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_JUMP, 0)
+		Mario.jumpVoice()
+		return true
+	}
+
+	// common_slide_action_with_jump(ACT_CROUCHING, ACT_JUMP, ACT_FREEFALL, MARIO_ANIM_START_CROUCHING)
+	// (its timer check is already covered by the 30 frames above)
+	if (Mario.updateSliding(4.0f))
+	{
+		Mario.setAction(MARIO_ACT_CROUCHING, 0)
+		return true
+	}
+	Mario.commonSlideAction(MARIO_ACT_CROUCHING, 0x97)
+	return false
+}
+
+
+function bool Mario.actButtSlide()
+{
+	return Mario.commonSlideActionWithJump(MARIO_ACT_BUTT_SLIDE_STOP, MARIO_ACT_JUMP, 0x91)
+}
+
+
+function bool Mario.actStomachSlide()
+{
+	return Mario.commonSlideActionWithJump(MARIO_ACT_STOMACH_SLIDE_STOP, MARIO_ACT_FORWARD_ROLLOUT, 0x88)
+}
+
+
+function bool Mario.actDiveSlide()
+{
+	if (!mario.inAboveSlide && (mario.inAPressed || mario.inBPressed))
+	{
+		Mario.setAction(MARIO_ACT_FORWARD_ROLLOUT, 0)
+		Mario.jumpVoice()
+		return true
+	}
+
+	if (Mario.updateSliding(8.0f) && Mario.isAnimAtEnd())
+	{
+		Mario.setForwardVel(0.0f)
+		Mario.setAction(MARIO_ACT_STOMACH_SLIDE_STOP, 0)
+		return true
+	}
+	Mario.commonSlideAction(MARIO_ACT_STOMACH_SLIDE_STOP, 0x88)
+	return false
+}
+
+
+function bool Mario.actSlideKickSlide()
+{
+	if (mario.inAPressed)
+	{
+		Mario.setAction(MARIO_ACT_FORWARD_ROLLOUT, 0)
+		Mario.jumpVoice()
+		return true
+	}
+
+	Mario.setAnim(0x8c)
+	if (Mario.isAnimAtEnd() && mario.fwd < 1.0f)
+	{
+		Mario.setAction(MARIO_ACT_SLIDE_KICK_SLIDE_STOP, 0)
+		return true
+	}
+
+	Mario.updateSliding(1.0f)
+	if (mario.groundStepHitWall)
+	{
+		Mario.setForwardVel(-mario.fwd)
+		Mario.setAction(MARIO_ACT_BACKWARD_GROUND_KB, 0)
+		return true
+	}
+	return false
+}
+
+
+// common_landing_cancels + common_landing_action
+function bool Mario.actLanding(u8 numFrames, u8 doubleJumpTime, u8 endAction, u8 aPressAction, u8 aPressType, u8 anim)
+{
+	mario.doubleJumpTimer = doubleJumpTime
+
+	if (Mario.shouldBeginSliding())
+	{
+		Mario.beginSliding()
+		return true
+	}
+
+	++mario.actionTimer
+	if (mario.actionTimer >= numFrames)
+	{
+		Mario.setAction(endAction, 0)
+		return true
+	}
+
+	if (mario.inAPressed && aPressType != 0)
+	{
+		if (aPressType == 2)
+			Mario.setTripleJumpAction()
+		else
+			Mario.setAction(aPressAction, 0)
+		Mario.playJumpActionVoice()
+		return true
+	}
+
+	// common_landing_action
+	if (mario.inAnalog)
+		Mario.applyLandingAccel(0.98f)
+	else if (mario.fwd >= 16.0f)
+		Mario.applySlopeDecel(2.0f)
+
+	Mario.setAnim(anim)
+	return false
+}
+
+
+function bool Mario.actBackwardGroundKB(u8 anim, s32 lastSlideFrame)
+{
+	if (mario.fwd > 32.0f)
+		mario.fwd = 32.0f
+	if (mario.fwd < -32.0f)
+		mario.fwd = -32.0f
+
+	Mario.setAnim(anim)
+	if (Mario.animFrameInt() < lastSlideFrame)
+		Mario.applyLandingAccel(0.9f)
+	else
+		Mario.setForwardVel((mario.fwd >= 0.0f) ? 0.1f : -0.1f)
+
+	if (Mario.isAnimAtEnd())
+	{
+		Mario.setAction(MARIO_ACT_IDLE, 0)
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.executeGroundAction(u8 act)
+{
+	if (act == MARIO_ACT_IDLE)
+		return Mario.actIdle()
+	if (act == MARIO_ACT_WALKING)
+		return Mario.actWalking()
+	if (act == MARIO_ACT_DECELERATING)
+		return Mario.actDecelerating()
+	if (act == MARIO_ACT_BRAKING)
+		return Mario.actBraking()
+	if (act == MARIO_ACT_BRAKING_STOP)
+		return Mario.actBrakingStop()
+	if (act == MARIO_ACT_TURNING_AROUND)
+		return Mario.actTurningAround()
+	if (act == MARIO_ACT_FINISH_TURNING_AROUND)
+		return Mario.actFinishTurningAround()
+	if (act == MARIO_ACT_START_CROUCHING)
+		return Mario.actStartCrouching()
+	if (act == MARIO_ACT_CROUCHING)
+		return Mario.actCrouching()
+	if (act == MARIO_ACT_STOP_CROUCHING)
+		return Mario.actStopCrouching()
+	if (act == MARIO_ACT_START_CRAWLING)
+		return Mario.actStartCrawling()
+	if (act == MARIO_ACT_CRAWLING)
+		return Mario.actCrawling()
+	if (act == MARIO_ACT_STOP_CRAWLING)
+		return Mario.actStopCrawling()
+	if (act == MARIO_ACT_CROUCH_SLIDE)
+		return Mario.actCrouchSlide()
+	if (act == MARIO_ACT_PUNCHING)
+		return Mario.actPunching()
+	if (act == MARIO_ACT_MOVE_PUNCHING)
+		return Mario.actMovePunching()
+
+	if (act == MARIO_ACT_JUMP_LAND)
+		return Mario.actLanding(4, 5, MARIO_ACT_JUMP_LAND_STOP, MARIO_ACT_DOUBLE_JUMP, 1, 0x4e)
+	if (act == MARIO_ACT_FREEFALL_LAND)
+		return Mario.actLanding(4, 5, MARIO_ACT_FREEFALL_LAND_STOP, MARIO_ACT_DOUBLE_JUMP, 1, 0x57)
+	if (act == MARIO_ACT_SIDE_FLIP_LAND)
+	{
+		mario.gfxFlip = 1
+		return Mario.actLanding(4, 5, MARIO_ACT_SIDE_FLIP_LAND_STOP, MARIO_ACT_DOUBLE_JUMP, 1, 0xbe)
+	}
+	if (act == MARIO_ACT_DOUBLE_JUMP_LAND)
+		return Mario.actLanding(4, 5, MARIO_ACT_DOUBLE_JUMP_LAND_STOP, MARIO_ACT_JUMP, 2, 0x4b)
+	if (act == MARIO_ACT_TRIPLE_JUMP_LAND)
+	{
+		mario.inAPressed = 0
+		return Mario.actLanding(4, 0, MARIO_ACT_TRIPLE_JUMP_LAND_STOP, 0, 0, 0xc0)
+	}
+	if (act == MARIO_ACT_BACKFLIP_LAND)
+	{
+		if (!mario.inZDown)
+			mario.inAPressed = 0
+		return Mario.actLanding(4, 0, MARIO_ACT_BACKFLIP_LAND_STOP, MARIO_ACT_BACKFLIP, 1, 0xc0)
+	}
+	if (act == MARIO_ACT_LONG_JUMP_LAND)
+	{
+		if (!mario.inZDown)
+			mario.inAPressed = 0
+		return Mario.actLanding(6, 5, MARIO_ACT_LONG_JUMP_LAND_STOP, MARIO_ACT_LONG_JUMP, 1, mario.longJumpSlow ? 0x12 : 0x11)
+	}
+
+	if (act == MARIO_ACT_JUMP_LAND_STOP)
+		return Mario.actLandingStop(0, 0x4e, MARIO_ACT_IDLE)
+	if (act == MARIO_ACT_FREEFALL_LAND_STOP)
+		return Mario.actLandingStop(0, 0x57, MARIO_ACT_IDLE)
+	if (act == MARIO_ACT_DOUBLE_JUMP_LAND_STOP)
+		return Mario.actLandingStop(0, 0x4b, MARIO_ACT_IDLE)
+	if (act == MARIO_ACT_SIDE_FLIP_LAND_STOP)
+	{
+		mario.gfxFlip = 1
+		return Mario.actLandingStop(0, 0xbe, MARIO_ACT_IDLE)
+	}
+	if (act == MARIO_ACT_TRIPLE_JUMP_LAND_STOP)
+		return Mario.actLandingStop(MARIO_ACT_JUMP, 0xc0, MARIO_ACT_IDLE)
+	if (act == MARIO_ACT_BACKFLIP_LAND_STOP)
+	{
+		if (!mario.inZDown || Mario.animFrameInt() >= 6)
+			mario.inAPressed = 0
+		return Mario.actLandingStop(MARIO_ACT_BACKFLIP, 0xc0, MARIO_ACT_IDLE)
+	}
+	if (act == MARIO_ACT_LONG_JUMP_LAND_STOP)
+	{
+		mario.inBPressed = 0
+		return Mario.actLandingStop(MARIO_ACT_JUMP, mario.longJumpSlow ? 0x12 : 0x11, MARIO_ACT_CROUCHING)
+	}
+
+	if (act == MARIO_ACT_DIVE_SLIDE)
+		return Mario.actDiveSlide()
+	if (act == MARIO_ACT_STOMACH_SLIDE)
+		return Mario.actStomachSlide()
+	if (act == MARIO_ACT_STOMACH_SLIDE_STOP)
+		return Mario.actStomachSlideStop()
+	if (act == MARIO_ACT_GROUND_POUND_LAND)
+		return Mario.actGroundPoundLand()
+	if (act == MARIO_ACT_BUTT_SLIDE)
+		return Mario.actButtSlide()
+	if (act == MARIO_ACT_BUTT_SLIDE_STOP)
+		return Mario.actButtSlideStop()
+	if (act == MARIO_ACT_SLIDE_KICK_SLIDE)
+		return Mario.actSlideKickSlide()
+	if (act == MARIO_ACT_SLIDE_KICK_SLIDE_STOP)
+		return Mario.actSlideKickSlideStop()
+	if (act == MARIO_ACT_BACKWARD_GROUND_KB)
+		return Mario.actBackwardGroundKB(0x7b, 22)
+	if (act == MARIO_ACT_GROUND_BONK)
+		return Mario.actBackwardGroundKB(0x8a, 32)
+
+	if (act == MARIO_ACT_FORCED_ROLL)
+	{
+		// The rolling ended
+		Mario.setAction((mario.fwd > 0.0f) ? MARIO_ACT_WALKING : MARIO_ACT_IDLE, 0)
+		return true
+	}
+
+	// Unknown or dead: just stand there
+	Mario.setAnim(0xc5)
+	return false
+}
+
+
+
+//-------------------------------------------------------//
+// Airborne actions                                      //
+//-------------------------------------------------------//
+
+function void Mario.playJumpActionVoice()
+{
+	u8 act = mario.action
+	if (act == MARIO_ACT_DOUBLE_JUMP)
+	{
+		Mario.voice("mario_hoohoo")
+	}
+	else if (act == MARIO_ACT_TRIPLE_JUMP)
+	{
+		u8 r = level.framecounter % 5
+		Mario.voice((r == 0) ? "mario_waha" : (r == 1) ? "mario_yippee" : "mario_yahoo")
+	}
+	else if (act == MARIO_ACT_LONG_JUMP)
+	{
+		Mario.voice("mario_yahoo")
+	}
+	else if (act == MARIO_ACT_JUMP || act == MARIO_ACT_BACKFLIP || act == MARIO_ACT_WALL_KICK_AIR || act == MARIO_ACT_SIDE_FLIP || act == MARIO_ACT_FORWARD_ROLLOUT)
+	{
+		Mario.jumpVoice()
+	}
+}
+
+
+// update_air_without_turn
+function void Mario.updateAirWithoutTurn()
+{
+	float dragThreshold = (mario.action == MARIO_ACT_LONG_JUMP) ? 48.0f : 32.0f
+	mario.fwd = Mario.approachF(mario.fwd, 0.0f, 0.35f, 0.35f)
+
+	if (mario.inAnalog)
+	{
+		s32 intendedDYaw = mario.intendedYaw - mario.yaw
+		float intendedMag = mario.intendedMag / 32.0f
+		mario.fwd += intendedMag * Mario.coss(intendedDYaw) * 1.5f
+	}
+
+	if (mario.fwd > dragThreshold)
+		mario.fwd -= 1.0f
+	if (mario.fwd < -16.0f)
+		mario.fwd += 2.0f
+}
+
+
+// update_air_with_turn (turning becomes facing the stick direction in 2D)
+function void Mario.updateAirWithTurn()
+{
+	float dragThreshold = 32.0f
+	mario.fwd = Mario.approachF(mario.fwd, 0.0f, 0.35f, 0.35f)
+
+	if (mario.inAnalog)
+	{
+		s32 intendedDYaw = mario.intendedYaw - mario.yaw
+		float intendedMag = mario.intendedMag / 32.0f
+		mario.fwd += 1.5f * Mario.coss(intendedDYaw) * intendedMag
+		mario.yaw += Mario.toInt(512.0f * Mario.sins(intendedDYaw) * intendedMag)
+	}
+
+	if (mario.fwd > dragThreshold)
+		mario.fwd -= 1.0f
+	if (mario.fwd < -16.0f)
+		mario.fwd += 2.0f
+}
+
+
+// apply_gravity
+function void Mario.applyGravity()
+{
+	u8 act = mario.action
+	if (act == MARIO_ACT_GROUND_POUND && mario.actionState == 0)
+		return
+	if (act == MARIO_ACT_AIR_HIT_WALL)
+		return
+
+	if (act == MARIO_ACT_LONG_JUMP || act == MARIO_ACT_SLIDE_KICK)
+	{
+		mario.velY -= 2.0f
+	}
+	else if (mario.jumpFlag && Mario.controlsJumpHeight(act) && !mario.inADown && mario.velY > 20.0f)
+	{
+		mario.velY /= 4.0f
+	}
+	else
+	{
+		mario.velY -= 4.0f
+	}
+
+	if (mario.velY < -75.0f)
+		mario.velY = -75.0f
+}
+
+
+// The landing part of perform_air_step (called when Sonic 3's collision put Mario on the ground)
+function void Mario.onLanding()
+{
+	u8 act = mario.action
+	mario.velY = 0.0f
+	mario.pitch = 0
+	mario.gfxFlip = 0
+
+	if (act == MARIO_ACT_JUMP || act == MARIO_ACT_WALL_KICK_AIR || act == MARIO_ACT_WATER_JUMP)
+		Mario.setAction(MARIO_ACT_JUMP_LAND, 0)
+	else if (act == MARIO_ACT_DOUBLE_JUMP)
+		Mario.setAction(MARIO_ACT_DOUBLE_JUMP_LAND, 0)
+	else if (act == MARIO_ACT_TRIPLE_JUMP)
+	{
+		Mario.setAction(MARIO_ACT_TRIPLE_JUMP_LAND, 0)
+		if (!mario.inAnalog)
+			Mario.voice("mario_haha")
+	}
+	else if (act == MARIO_ACT_BACKFLIP)
+	{
+		Mario.setAction(MARIO_ACT_BACKFLIP_LAND, 0)
+		if (!mario.inAnalog)
+			Mario.voice("mario_haha")
+	}
+	else if (act == MARIO_ACT_SIDE_FLIP)
+		Mario.setAction(MARIO_ACT_SIDE_FLIP_LAND, 0)
+	else if (act == MARIO_ACT_LONG_JUMP)
+	{
+		Mario.setAction(MARIO_ACT_LONG_JUMP_LAND, 0)
+		if (!mario.inAnalog)
+			Mario.voice("mario_uh")
+	}
+	else if (act == MARIO_ACT_FORWARD_ROLLOUT)
+		Mario.setAction(MARIO_ACT_FREEFALL_LAND_STOP, 0)
+	else if (act == MARIO_ACT_DIVE)
+		Mario.setAction(MARIO_ACT_DIVE_SLIDE, 0)
+	else if (act == MARIO_ACT_GROUND_POUND)
+	{
+		Mario.setAction(MARIO_ACT_GROUND_POUND_LAND, 0)
+		playSound(0x49)
+		camera.screenshake.state = 0x10
+	}
+	else if (act == MARIO_ACT_SLIDE_KICK)
+		Mario.setAction(MARIO_ACT_SLIDE_KICK_SLIDE, 0)
+	else if (act == MARIO_ACT_BUTT_SLIDE_AIR)
+		Mario.setAction(MARIO_ACT_BUTT_SLIDE, 0)
+	else if (act == MARIO_ACT_BACKWARD_AIR_KB)
+		Mario.setAction(MARIO_ACT_BACKWARD_GROUND_KB, 0)
+	else if (act == MARIO_ACT_HURT)
+	{
+		Mario.setForwardVel(0.0f)
+		Mario.setAction(MARIO_ACT_IDLE, 0)
+	}
+	else if (act == MARIO_ACT_FORCED_ROLL)
+		Mario.setAction((mario.fwd > 0.0f) ? MARIO_ACT_WALKING : MARIO_ACT_IDLE, 0)
+	else if (Mario.isWaterAction(act))
+		Mario.setAction((mario.fwd > 0.0f) ? MARIO_ACT_WALKING : MARIO_ACT_IDLE, 0)
+	else
+		Mario.setAction(MARIO_ACT_FREEFALL_LAND, 0)
+}
+
+
+// Sonic 3's ground collision found no floor any more (GROUND_STEP_LEFT_GROUND)
+function void Mario.onLeftGround()
+{
+	u8 act = mario.action
+	Mario.adoptEngineVelocityX()
+	mario.velY = -Mario.fromEngine(global.inv_gravity ? -char.velocity.y : char.velocity.y)
+
+	if (act == MARIO_ACT_BUTT_SLIDE)
+		Mario.setAction(MARIO_ACT_BUTT_SLIDE_AIR, 0)
+	else if (act == MARIO_ACT_SLIDE_KICK_SLIDE)
+		Mario.setAction(MARIO_ACT_FREEFALL, 2)
+	else if (act == MARIO_ACT_STOMACH_SLIDE || act == MARIO_ACT_DIVE_SLIDE)
+		Mario.setAction(MARIO_ACT_FREEFALL, 1)
+	else if (act == MARIO_ACT_BACKWARD_GROUND_KB || act == MARIO_ACT_GROUND_BONK)
+		Mario.setAction(MARIO_ACT_BACKWARD_AIR_KB, 0)
+	else
+		Mario.setAction(MARIO_ACT_FREEFALL, 0)
+
+	// Walking off a ledge does not count as a jump for the variable jump height
+	mario.jumpFlag = 0
+}
+
+
+// Wall and ceiling collisions from the last air movement (AIR_STEP_HIT_WALL)
+function void Mario.handleAirStepResults()
+{
+	if (mario.stepHitCeiling)
+	{
+		mario.stepHitCeiling = 0
+		if (mario.velY > 0.0f)
+			mario.velY = 0.0f
+	}
+
+	if (!mario.stepHitWall)
+		return
+	mario.stepHitWall = 0
+
+	u8 act = mario.action
+	if (act == MARIO_ACT_JUMP || act == MARIO_ACT_DOUBLE_JUMP || act == MARIO_ACT_TRIPLE_JUMP || act == MARIO_ACT_BACKFLIP || act == MARIO_ACT_FREEFALL || act == MARIO_ACT_SIDE_FLIP || act == MARIO_ACT_WALL_KICK_AIR || act == MARIO_ACT_LONG_JUMP || act == MARIO_ACT_LAUNCHED || act == MARIO_ACT_WATER_JUMP || act == MARIO_ACT_BUTT_SLIDE_AIR)
+	{
+		// common_air_action_step
+		if (mario.fwd > 16.0f)
+		{
+			mario.gfxFlip = 0
+			Mario.setAction(MARIO_ACT_AIR_HIT_WALL, 0)
+		}
+		else
+		{
+			Mario.setForwardVel(0.0f)
+		}
+	}
+	else if (act == MARIO_ACT_DIVE)
+	{
+		Mario.setForwardVel(-mario.fwd)
+		if (mario.velY > 0.0f)
+			mario.velY = 0.0f
+		Mario.setAction(MARIO_ACT_BACKWARD_AIR_KB, 0)
+		Mario.voice("mario_doh")
+	}
+	else if (act == MARIO_ACT_GROUND_POUND || act == MARIO_ACT_SLIDE_KICK)
+	{
+		Mario.setForwardVel(-16.0f)
+		if (mario.velY > 0.0f)
+			mario.velY = 0.0f
+		Mario.setAction(MARIO_ACT_BACKWARD_AIR_KB, 0)
+	}
+	else if (act == MARIO_ACT_SOFT_BONK || act == MARIO_ACT_BACKWARD_AIR_KB)
+	{
+		// common_air_knockback_step: bonk off the wall
+		if (mario.velY > 0.0f)
+			mario.velY = 0.0f
+		Mario.setForwardVel(-mario.fwd)
+	}
+	else
+	{
+		Mario.setForwardVel(0.0f)
+	}
+}
+
+
+// check_kick_or_dive_in_air
+function bool Mario.checkKickOrDiveInAir()
+{
+	if (mario.inBPressed)
+	{
+		Mario.setAction((mario.fwd > 28.0f) ? MARIO_ACT_DIVE : MARIO_ACT_JUMP_KICK, 0)
+		if (mario.action == MARIO_ACT_DIVE)
+			Mario.voice("mario_hoohoo")
+		else
+			Mario.voice("mario_punchhoo")
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.checkGroundPound()
+{
+	if (mario.inZPressed)
+	{
+		Mario.setAction(MARIO_ACT_GROUND_POUND, 0)
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.checkDive()
+{
+	if (mario.inBPressed)
+	{
+		Mario.setAction(MARIO_ACT_DIVE, 0)
+		Mario.voice("mario_hoohoo")
+		return true
+	}
+	return false
+}
+
+
+// check_wall_kick
+function bool Mario.checkWallKick()
+{
+	if (mario.inAPressed && mario.wallKickTimer != 0 && mario.prevAction == MARIO_ACT_AIR_HIT_WALL)
+	{
+		mario.yaw += 0x8000
+		Mario.setAction(MARIO_ACT_WALL_KICK_AIR, 0)
+		Mario.jumpVoice()
+		return true
+	}
+	return false
+}
+
+
+function bool Mario.executeAirAction(u8 act)
+{
+	if (act == MARIO_ACT_JUMP)
+	{
+		if (Mario.checkKickOrDiveInAir() || Mario.checkGroundPound())
+			return true
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0x4d)
+	}
+	else if (act == MARIO_ACT_DOUBLE_JUMP)
+	{
+		if (Mario.checkKickOrDiveInAir() || Mario.checkGroundPound())
+			return true
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim((mario.velY >= 0.0f) ? 0x50 : 0x4c)
+	}
+	else if (act == MARIO_ACT_TRIPLE_JUMP)
+	{
+		if (Mario.checkDive() || Mario.checkGroundPound())
+			return true
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0xc1)
+	}
+	else if (act == MARIO_ACT_BACKFLIP)
+	{
+		if (Mario.checkGroundPound())
+			return true
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0x04)
+	}
+	else if (act == MARIO_ACT_FREEFALL || act == MARIO_ACT_LAUNCHED)
+	{
+		if (Mario.checkDive() || Mario.checkGroundPound())
+			return true
+		Mario.updateAirWithoutTurn()
+		if (act == MARIO_ACT_LAUNCHED && mario.velY > 0.0f)
+			Mario.setAnim(0x50)
+		else
+			Mario.setAnim((mario.actionArg == 1) ? 0x90 : (mario.actionArg == 2) ? 0x53 : 0x56)
+	}
+	else if (act == MARIO_ACT_SIDE_FLIP)
+	{
+		if (Mario.checkDive() || Mario.checkGroundPound())
+			return true
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0xbf)
+		mario.gfxFlip = 1
+	}
+	else if (act == MARIO_ACT_WALL_KICK_AIR)
+	{
+		if (Mario.checkDive() || Mario.checkGroundPound())
+			return true
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0xcb)
+	}
+	else if (act == MARIO_ACT_LONG_JUMP)
+	{
+		Mario.playJumpActionVoice()
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(mario.longJumpSlow ? 0x14 : 0x13)
+	}
+	else if (act == MARIO_ACT_DIVE)
+	{
+		Mario.setAnim(0x88)
+		Mario.updateAirWithoutTurn()
+		if (mario.velY < 0.0f && mario.pitch > -0x2aaa)
+		{
+			mario.pitch -= 0x200
+			if (mario.pitch < -0x2aaa)
+				mario.pitch = -0x2aaa
+		}
+	}
+	else if (act == MARIO_ACT_JUMP_KICK)
+	{
+		Mario.setAnim(0x4f)
+		Mario.updateAirWithoutTurn()
+	}
+	else if (act == MARIO_ACT_GROUND_POUND)
+	{
+		if (mario.actionState == 0)
+		{
+			if (mario.actionTimer < 10)
+			{
+				// Rise a bit while doing the flip
+				float yOffset = float(20 - 2 * s32(mario.actionTimer))
+				s16 dy = s16(Mario.toInt(yOffset * mario.posScale))
+				char.position.y.u16 -= global.inv_gravity ? -dy : dy
+			}
+			mario.velY = -50.0f
+			Mario.setForwardVel(0.0f)
+			Mario.setAnim(0x3c)
+			if (mario.actionTimer == 0)
+				Mario.voice("mario_wah")
+
+			++mario.actionTimer
+			if (mario.actionTimer >= MarioAnim.LOOP_END[0x3c] + 4)
+				mario.actionState = 1
+		}
+		else
+		{
+			Mario.setAnim(0x3d)
+		}
+	}
+	else if (act == MARIO_ACT_FORWARD_ROLLOUT)
+	{
+		if (mario.actionState == 0)
+		{
+			mario.velY = 30.0f
+			mario.actionState = 1
+		}
+		Mario.updateAirWithoutTurn()
+		if (mario.actionState == 1)
+		{
+			Mario.setAnim(0x6f)
+			if (Mario.isAnimPastEnd())
+				mario.actionState = 2
+		}
+		else
+		{
+			Mario.setAnim(0x56)
+		}
+	}
+	else if (act == MARIO_ACT_AIR_HIT_WALL)
+	{
+		++mario.actionTimer
+		if (mario.actionTimer <= 2)
+		{
+			if (mario.inAPressed)
+			{
+				mario.velY = 52.0f
+				mario.yaw += 0x8000
+				Mario.setAction(MARIO_ACT_WALL_KICK_AIR, 0)
+				Mario.jumpVoice()
+				return true
+			}
+		}
+		else
+		{
+			mario.wallKickTimer = 5
+			if (mario.velY > 0.0f)
+				mario.velY = 0.0f
+			if (mario.fwd >= 38.0f)
+			{
+				Mario.setAction(MARIO_ACT_BACKWARD_AIR_KB, 0)
+				Mario.voice("mario_doh")
+			}
+			else
+			{
+				if (mario.fwd > 8.0f)
+					Mario.setForwardVel(-8.0f)
+				Mario.setAction(MARIO_ACT_SOFT_BONK, 0)
+			}
+			return true
+		}
+		Mario.setAnim(0xcc)
+	}
+	else if (act == MARIO_ACT_SOFT_BONK)
+	{
+		if (Mario.checkWallKick())
+			return true
+		Mario.setAnim(0x56)
+	}
+	else if (act == MARIO_ACT_BACKWARD_AIR_KB)
+	{
+		if (Mario.checkWallKick())
+			return true
+		Mario.setForwardVel(-16.0f)
+		Mario.setAnim(0x02)
+	}
+	else if (act == MARIO_ACT_SLIDE_KICK)
+	{
+		Mario.updateAirWithoutTurn()
+		Mario.setAnim(0x8c)
+	}
+	else if (act == MARIO_ACT_BUTT_SLIDE_AIR)
+	{
+		Mario.updateAirWithTurn()
+		Mario.setAnim(0x90)
+	}
+	else if (act == MARIO_ACT_WATER_JUMP)
+	{
+		if (mario.fwd < 15.0f)
+			Mario.setForwardVel(15.0f)
+		Mario.setAnim(0x4d)
+	}
+	else if (act == MARIO_ACT_HURT)
+	{
+		// Controlled by Sonic 3's hurt state
+		Mario.setAnim(0x02)
+	}
+	return false
+}
+
+
+
+//-------------------------------------------------------//
+// Swimming (mario_actions_submerged.c)                  //
+//-------------------------------------------------------//
+
+global float mario.waterSurfaceY		// Highest allowed character y-position while swimming (in pixels)
+
+function bool Mario.isSwimmingNearSurface()
+{
+	// SM64: (waterLevel - 80) - pos.y < 400
+	float dist = (float(s16(char.position.y.u16)) - mario.waterSurfaceY) / mario.posScale
+	return dist < 400.0f
+}
+
+function bool Mario.isStationaryWaterAction(u8 act)
+{
+	return (act == MARIO_ACT_WATER_IDLE || act == MARIO_ACT_WATER_ACTION_END || act == MARIO_ACT_WATER_PLUNGE)
+}
+
+function float Mario.getBuoyancy()
+{
+	if (Mario.isSwimmingNearSurface())
+		return 1.25f
+	if (Mario.isStationaryWaterAction(mario.action))
+		return 0.0f - 2.0f
+	return 0.0f
+}
+
+function void Mario.updateSwimmingSpeed(float decelThreshold)
+{
+	float buoyancy = Mario.getBuoyancy()
+	if (Mario.isStationaryWaterAction(mario.action))
+		mario.fwd -= 2.0f
+	if (mario.fwd < 0.0f)
+		mario.fwd = 0.0f
+	if (mario.fwd > 28.0f)
+		mario.fwd = 28.0f
+	if (mario.fwd > decelThreshold)
+		mario.fwd -= 0.5f
+
+	mario.slideVel = mario.fwd * Mario.coss(mario.pitch) * Mario.sins(mario.yaw)
+	mario.velY = mario.fwd * Mario.sins(mario.pitch) + buoyancy
+}
+
+// In 2D, left / right choose the swimming direction, up / down the pitch
+function void Mario.updateSwimmingYawAndPitch()
+{
+	if (mario.inAnalog)
+		mario.yaw = mario.intendedYaw
+
+	s32 targetPitch = 0
+	if (mario.inUp)
+		targetPitch = 0x3f00
+	else if (mario.inZDown)
+		targetPitch = -0x3f00
+
+	s32 pitchVel = (mario.pitch < 0) ? 0x100 : 0x200
+	if (mario.pitch < targetPitch)
+		mario.pitch = min(mario.pitch + pitchVel, targetPitch)
+	else if (mario.pitch > targetPitch)
+		mario.pitch = max(mario.pitch - pitchVel, targetPitch)
+}
+
+function bool Mario.checkWaterJump()
+{
+	if (mario.inAPressed)
+	{
+		bool atSurface = (float(s16(char.position.y.u16)) <= mario.waterSurfaceY + 1.0f)
+		if (atSurface && mario.pitch >= 0 && mario.inUp)
+		{
+			Mario.setAction(MARIO_ACT_WATER_JUMP, 0)
+			return true
+		}
+	}
+	return false
+}
+
+function bool Mario.executeWaterAction(u8 act)
+{
+	if (act == MARIO_ACT_WATER_PLUNGE)
+	{
+		// Slow down after diving into the water
+		mario.velY *= 0.75f
+		mario.fwd *= 0.9f
+		mario.slideVel = mario.fwd * Mario.sins(mario.yaw)
+		Mario.setAnim(0xb2)
+		if (mario.velY > -5.0f)
+		{
+			Mario.setAction(mario.inADown ? MARIO_ACT_BREASTSTROKE : MARIO_ACT_WATER_IDLE, 0)
+			return true
+		}
+		return false
+	}
+
+	if (act == MARIO_ACT_WATER_IDLE)
+	{
+		if (mario.inAPressed)
+		{
+			Mario.setAction(MARIO_ACT_BREASTSTROKE, 0)
+			return true
+		}
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(16.0f)
+		Mario.setAnimWithAccel(0xb2, (mario.pitch < -0x1000) ? 3.0f : 1.0f)
+		return false
+	}
+
+	if (act == MARIO_ACT_BREASTSTROKE)
+	{
+		if (mario.actionArg == 0)
+			mario.swimStrength = 160
+
+		++mario.actionTimer
+		if (mario.actionTimer == 14)
+		{
+			Mario.setAction(MARIO_ACT_FLUTTER_KICK, 0)
+			return true
+		}
+		if (Mario.checkWaterJump())
+			return true
+
+		if (mario.actionTimer < 6)
+			mario.fwd += 0.5f
+		if (mario.actionTimer >= 9)
+			mario.fwd += 1.5f
+
+		if (mario.actionTimer >= 2)
+		{
+			if (mario.actionTimer < 6 && mario.inAPressed)
+				mario.actionState = 1
+			if (mario.actionTimer == 9 && mario.actionState == 1)
+			{
+				Mario.setAnimToFrame(0)
+				mario.actionState = 0
+				mario.actionTimer = 1
+				mario.swimStrength = 160
+			}
+		}
+
+		Mario.setAnim(0xaa)
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(float(mario.swimStrength) / 10.0f)
+		return false
+	}
+
+	if (act == MARIO_ACT_SWIMMING_END)
+	{
+		if (mario.actionTimer >= 15)
+		{
+			Mario.setAction(MARIO_ACT_WATER_ACTION_END, 0)
+			return true
+		}
+		if (Mario.checkWaterJump())
+			return true
+		if (mario.inADown && mario.actionTimer >= 7)
+		{
+			if (mario.actionTimer == 7 && mario.swimStrength < 280)
+				mario.swimStrength += 10
+			Mario.setAction(MARIO_ACT_BREASTSTROKE, 1)
+			return true
+		}
+		if (mario.actionTimer >= 7)
+			mario.swimStrength = 160
+
+		++mario.actionTimer
+		mario.fwd -= 0.25f
+		Mario.setAnim(0xab)
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(float(mario.swimStrength) / 10.0f)
+		return false
+	}
+
+	if (act == MARIO_ACT_FLUTTER_KICK)
+	{
+		if (!mario.inADown)
+		{
+			if (mario.actionTimer == 0 && mario.swimStrength < 280)
+				mario.swimStrength += 10
+			Mario.setAction(MARIO_ACT_SWIMMING_END, 0)
+			return true
+		}
+		mario.fwd = Mario.approachF(mario.fwd, 12.0f, 0.1f, 0.15f)
+		mario.actionTimer = 1
+		mario.swimStrength = 160
+		if (mario.fwd < 14.0f)
+			Mario.setAnim(0xac)
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(float(mario.swimStrength) / 10.0f)
+		return false
+	}
+
+	if (act == MARIO_ACT_WATER_ACTION_END)
+	{
+		if (mario.inAPressed)
+		{
+			Mario.setAction(MARIO_ACT_BREASTSTROKE, 0)
+			return true
+		}
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(16.0f)
+		Mario.setAnim(0xad)
+		if (Mario.isAnimAtEnd())
+			Mario.setAction(MARIO_ACT_WATER_IDLE, 0)
+		return false
+	}
+
+	Mario.setAction(MARIO_ACT_WATER_IDLE, 0)
+	return true
+}
+
+
+function void Mario.waterFrame()
+{
+	bool onGround = (char.flags & char.flag.IN_AIR) == 0
+
+	// SM64 keeps Mario's feet 80 units below the water surface
+	mario.waterSurfaceY = float(s16(water.height.current)) + 80.0f * mario.posScale - 19.0f
+
+	if (mario.tick)
+	{
+		if (!Mario.isWaterAction(mario.action) && !(mario.action == MARIO_ACT_WATER_JUMP && mario.velY > 0.0f))
+		{
+			// Entering the water
+			Mario.adoptEngineVelocityX()
+			if (!onGround)
+				mario.velY = -Mario.fromEngine(global.inv_gravity ? -char.velocity.y : char.velocity.y)
+			else
+				mario.velY = 0.0f
+			Mario.setAction(MARIO_ACT_WATER_PLUNGE, 0)
+			mario.pitch = 0
+		}
+		else
+		{
+			Mario.syncFromEngine(!onGround)
+		}
+
+		Mario.updateInputs(onGround)
+		mario.stepHitWall = 0
+		mario.stepHitCeiling = 0
+		Mario.executeAction()
+		Mario.tickAnimation()
+
+		if (mario.action == MARIO_ACT_WATER_JUMP)
+		{
+			// Jump out of the water
+			if (onGround)
+			{
+				Mario.takeOff()
+				return
+			}
+			Mario.setAirVelocity()
+			Mario.applyGravity()
+		}
+		else
+		{
+			// Swimming: velocity was set by the water action
+			char.velocity.x = Mario.toEngine(mario.slideVel)
+			s16 vy = -Mario.toEngine(mario.velY)
+			char.velocity.y = global.inv_gravity ? -vy : vy
+			mario.setVx = char.velocity.x
+			mario.setVy = char.velocity.y
+
+			if (onGround && mario.velY > 0.0f)
+			{
+				// Swimming up from the floor
+				char.flags |= char.flag.IN_AIR
+				char.flags &= ~(char.flag.PUSHING | char.flag.ON_OBJECT)
+				onGround = false
+			}
+		}
+	}
+
+	if (onGround)
+	{
+		s16 gs = char.velocity.x
+		char.groundspeed = gs
+		Mario.updateFacingFlag()
+		char.velocity.x = (s32(lookupCos(char.rotation)) * gs) >> 8
+		char.velocity.y = (s32(lookupSin(char.rotation)) * gs) >> 8
+		Character.UpdateControlOnGroundShared()
+		Character.sharedUpdateOnGround()
+		mario.setGs = char.groundspeed
+		mario.setVx = char.velocity.x
+		mario.setVy = char.velocity.y
+	}
+	else
+	{
+		Mario.moveInAir()
+
+		// Stay below the water surface
+		if (mario.action != MARIO_ACT_WATER_JUMP && (char.flags & char.flag.IN_AIR) && !global.inv_gravity)
+		{
+			if (float(s16(char.position.y.u16)) < mario.waterSurfaceY)
+			{
+				char.position.y.u16 = u16(Mario.toInt(mario.waterSurfaceY))
+				if (char.velocity.y < 0)
+					char.velocity.y = 0
+				if (mario.velY > 0.0f)
+					mario.velY = 0.0f
+				mario.setVy = char.velocity.y
+			}
+		}
+	}
+}

@@ -1,0 +1,914 @@
+//-------------------------------------------------------//
+// Mario: Super Mario 64's movement code in 2D - core    //
+//-------------------------------------------------------//
+
+// How this works:
+//  - Mario uses the Sonic character object (and Sonic's route), but his movement is driven by
+//    a port of Super Mario 64's MarioState / action code (see mario_actions.lemon).
+//  - Like in SM64, the action logic runs at 30 Hz ("ticks", every second frame), in SM64 units.
+//  - Sonic 3's own code is still used for terrain collision (floors, walls, slopes, loops),
+//    objects, rings, damage, water, etc. The SM64 velocities get converted to S3K velocities,
+//    and changes that S3K makes (springs, bounces, walls) get converted back.
+
+
+constant u16 CHARS_MARIO = 5
+
+// Mod settings (see mod.json)
+global u8 mario.option.everywhere		// 1 = Sonic alone gets replaced by Mario in all game modes
+global u8 mario.option.voice			// 1 = Mario voice clips enabled
+global u8 mario.option.scale			// 0 = Sonic 3 scale, 1 = Mario 64 scale
+
+global u8 mario.active
+
+
+// SM64 MarioState, in 2D
+global u8 mario.action
+global u8 mario.prevAction
+global u8 mario.actionState
+global u16 mario.actionTimer
+global u16 mario.actionArg
+global float mario.fwd					// forwardVel, in units per tick
+global float mario.velY					// vertical velocity, in units per tick (positive = up)
+global float mario.slideVel				// sliding velocity along the screen x-axis
+global s32 mario.yaw					// faceAngle[1]: 0x4000 = facing right, -0x4000 = facing left
+global s32 mario.pitch					// faceAngle[0], used while swimming and diving
+global u8 mario.doubleJumpTimer
+global u8 mario.wallKickTimer
+global u8 mario.jumpFlag				// MARIO_UNKNOWN_08 in SM64: allows variable jump height
+global u8 mario.longJumpSlow
+global u16 mario.swimStrength
+global u8 mario.gfxFlip					// Turn the graphics around (side flip etc.)
+global u8 mario.voicePlayed
+
+// Inputs of the current tick
+global u8 mario.inAPressed
+global u8 mario.inADown
+global u8 mario.inBPressed
+global u8 mario.inZPressed
+global u8 mario.inZDown
+global u8 mario.inUp
+global u8 mario.inAnalog
+global u8 mario.inUnknown5
+global u8 mario.inAboveSlide
+global float mario.intendedMag
+global s32 mario.intendedYaw
+
+// Button presses collected between two ticks
+global u8 mario.pendA
+global u8 mario.pendB
+global u8 mario.pendZ
+
+// Engine glue
+global u8 mario.tick
+global u8 mario.groundStepHitWall		// Result of the last ground step (GROUND_STEP_HIT_WALL)
+global u8 mario.stepHitWall
+global u8 mario.stepHitCeiling
+global u8 mario.wasControlled
+global u8 mario.wasUnderwater
+global s16 mario.setVx
+global s16 mario.setVy
+global s16 mario.setGs
+global float mario.posScale				// Pixels per SM64 unit
+global float mario.velScale				// S3K 8.8 velocity per SM64 unit/tick
+global float mario.impulseScale			// For converting S3K launch velocities (springs etc.)
+
+// Animation
+global u8 mario.anim
+global float mario.animFrame
+global float mario.animAccel
+global u8 mario.animJustSet
+global u16 mario.winTimer
+global s8 mario.drawAngle
+global u8 mario.wallBoost				// Velocity raised for breakable walls this frame (see Mario.applyWallBoost)
+global s16 mario.wallBoostVx
+global s16 mario.wallBoostRealVx
+global s16 mario.wallBoostRealGs
+
+
+
+//-------------------------------------------------------//
+// Helpers                                               //
+//-------------------------------------------------------//
+
+function bool Mario.isControlled()
+{
+	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC)
+}
+
+// Float to integer, rounding towards zero like in C
+function s32 Mario.toInt(float value)
+{
+	if (value >= 0.0f)
+		return s32(Math.floorToInt(value))
+	return s32(Math.ceilToInt(value))
+}
+
+function float Mario.sins(s32 angle)
+{
+	return Math.sin(float(s16(angle)) * 0.0000958738f)
+}
+
+function float Mario.coss(s32 angle)
+{
+	return Math.cos(float(s16(angle)) * 0.0000958738f)
+}
+
+function float Mario.approachF(float current, float target, float inc, float dec)
+{
+	if (current < target)
+		return min(current + inc, target)
+	return max(current - dec, target)
+}
+
+function s32 Mario.approachS(s32 current, s32 target, s32 inc, s32 dec)
+{
+	if (current < target)
+		return min(current + inc, target)
+	return max(current - dec, target)
+}
+
+function s16 Mario.toEngine(float value)
+{
+	float v = value * mario.velScale
+	return s16(Mario.toInt(clamp(v, -6144.0f, 6144.0f)))
+}
+
+function float Mario.fromEngine(s16 value)
+{
+	return float(value) / mario.velScale
+}
+
+// Screen x-direction Mario is facing / moving forward to: 1 = right, -1 = left
+function s8 Mario.faceSign()
+{
+	return (Mario.sins(mario.yaw) < 0.0f) ? -1 : 1
+}
+
+function void Mario.setForwardVel(float value)
+{
+	mario.fwd = value
+	mario.slideVel = value * Mario.sins(mario.yaw)
+}
+
+function void Mario.voice(string key)
+{
+	if (mario.option.voice && mario.voicePlayed == 0)
+	{
+		Audio.playAudio(key, AudioContext.CONTEXT_SOUND)
+	}
+	mario.voicePlayed = 1
+}
+
+// SM64's random "yah / wah / hoo" jump sound
+function void Mario.jumpVoice()
+{
+	u8 r = level.framecounter % 3
+	Mario.voice((r == 0) ? "mario_yah" : (r == 1) ? "mario_wah" : "mario_hoo")
+}
+
+function void Mario.updateScale()
+{
+	float scale = (mario.option.scale == 0) ? 1.5f : 1.0f
+	mario.posScale = 0.255f * scale
+	mario.velScale = mario.posScale * 128.0f			// units/tick -> px/frame (x0.5) -> 8.8 fixed point (x256)
+	mario.impulseScale = Math.sqrt(mario.posScale / 0.21875f)		// S3K gravity is 0x38 / 256 px per frame^2
+}
+
+
+
+//-------------------------------------------------------//
+// Floor (2D version of SM64's floor normal checks)      //
+//-------------------------------------------------------//
+
+function float Mario.floorSteepness()
+{
+	return abs(float(lookupSin(char.rotation))) / 256.0f
+}
+
+// Screen x-direction going downhill along the floor
+function s8 Mario.downhillSign()
+{
+	s16 s = lookupSin(char.rotation)
+	return (s > 0) ? 1 : (s < 0) ? -1 : 0
+}
+
+function bool Mario.facingDownhill()
+{
+	s8 d = Mario.downhillSign()
+	return (d != 0 && d == Mario.faceSign())
+}
+
+// mario_floor_is_slope: more than 15 degrees
+function bool Mario.floorIsSlope()
+{
+	return Mario.floorSteepness() > 0.2588f
+}
+
+// mario_floor_is_slippery: more than ~38 degrees
+function bool Mario.floorIsSlippery()
+{
+	return Mario.floorSteepness() > 0.6157f
+}
+
+function bool Mario.onFloorQuadrant()
+{
+	return ((char.rotation + 0x20) & 0xc0) == 0
+}
+
+
+
+//-------------------------------------------------------//
+// Character selection                                   //
+//-------------------------------------------------------//
+
+function void SetGlobalCharacters()
+{
+	u16 selection = levelselect.characters
+	bool wantMario = (selection == CHARS_MARIO)
+	if (mario.option.everywhere && selection == CHARS_SONIC_ALONE)
+		wantMario = true
+
+	// Base implementation does not know about Mario, so let it set up Sonic alone
+	if (selection == CHARS_MARIO)
+		levelselect.characters = CHARS_SONIC_ALONE
+
+	base.SetGlobalCharacters()
+
+	levelselect.characters = selection
+
+	bool active = wantMario && (global.characters == CHARS_SONIC_ALONE) && (competition_mode.active == 0)
+	mario.active = active ? 1 : 0
+	if (active)
+	{
+		Mario.updateScale()
+		Mario.resetState()
+	}
+}
+
+
+function void Mario.resetState()
+{
+	mario.action = MARIO_ACT_IDLE
+	mario.wallBoost = 0
+	mario.prevAction = MARIO_ACT_IDLE
+	mario.actionState = 0
+	mario.actionTimer = 0
+	mario.actionArg = 0
+	mario.fwd = 0.0f
+	mario.velY = 0.0f
+	mario.slideVel = 0.0f
+	mario.yaw = 0x4000
+	mario.pitch = 0
+	mario.doubleJumpTimer = 0
+	mario.wallKickTimer = 0
+	mario.jumpFlag = 0
+	mario.swimStrength = 160
+	mario.gfxFlip = 0
+	mario.pendA = 0
+	mario.pendB = 0
+	mario.pendZ = 0
+	mario.stepHitWall = 0
+	mario.stepHitCeiling = 0
+	mario.groundStepHitWall = 0
+	mario.wasControlled = 1
+	mario.setVx = 0
+	mario.setVy = 0
+	mario.setGs = 0
+	mario.anim = 0xc5
+	mario.animFrame = 0.0f
+	mario.animAccel = 1.0f
+	mario.winTimer = 0
+	mario.drawAngle = 0
+}
+
+
+
+//-------------------------------------------------------//
+// Hooks into the Sonic character update                 //
+//-------------------------------------------------------//
+
+function void Character.UpdateNormalState.Sonic()
+{
+	Mario.undoWallBoost()
+	if (!Mario.isControlled())
+	{
+		base.Character.UpdateNormalState.Sonic()
+		return
+	}
+
+	// Mario never uses Sonic's specials
+	sonic.dropdash_counter = 0
+	sonic.fastrunanim.timer = 0
+
+	// Collect button presses for the next tick (SM64 runs at 30 Hz)
+	u8 pressed = control.player1.pressed
+	if (pressed & (CONTROL_A | CONTROL_B))
+		mario.pendA = 1
+	if (pressed & CONTROL_C)
+		mario.pendB = 1
+	if (pressed & CONTROL_DOWN)
+		mario.pendZ = 1
+
+	mario.tick = ((level.framecounter & 0x01) == 0) ? 1 : 0
+	mario.wasUnderwater = (char.flags & char.flag.UNDERWATER) ? 1 : 0
+	if (char.control_flags & control_flag.DISABLE_UPDATE)
+	{
+		// Some object controls the character (pole, zipline, etc.)
+		mario.wasControlled = 1
+	}
+
+	base.Character.UpdateNormalState.Sonic()
+
+	// Sonic 3 changes the velocity when entering or leaving water, but Mario's water physics take care of that
+	u8 isUnderwater = (char.flags & char.flag.UNDERWATER) ? 1 : 0
+	if (isUnderwater != mario.wasUnderwater && (char.control_flags & control_flag.DISABLE_UPDATE) == 0 && (char.flags & char.flag.IN_AIR))
+	{
+		char.velocity.x = mario.setVx
+		char.velocity.y = mario.setVy
+	}
+
+	Mario.updateEngineState()
+}
+
+
+// Rolling on the ground is only forced by level objects (like tubes), leave that to the original code
+function void Character.UpdateSonicRollingOnGround()
+{
+	if (!Mario.isControlled())
+	{
+		base.Character.UpdateSonicRollingOnGround()
+		return
+	}
+
+	base.Character.UpdateSonicRollingOnGround()
+
+	if (mario.action != MARIO_ACT_FORCED_ROLL)
+	{
+		Mario.setAction(MARIO_ACT_FORCED_ROLL, 0)
+	}
+	mario.fwd = abs(Mario.fromEngine(char.groundspeed))
+	mario.yaw = (char.groundspeed < 0) ? -0x4000 : 0x4000
+	mario.velY = 0.0f
+	mario.setGs = char.groundspeed
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+	Mario.tickAnimation()
+}
+
+
+function void Character.UpdateSonicUprightOnGround()
+{
+	if (!Mario.isControlled())
+	{
+		base.Character.UpdateSonicUprightOnGround()
+		return
+	}
+	Mario.groundFrame()
+}
+
+
+function void Character.UpdateSonicRollingInAir()
+{
+	if (!Mario.isControlled())
+	{
+		base.Character.UpdateSonicRollingInAir()
+		return
+	}
+	Mario.airFrame()
+}
+
+
+// Not used by Mario, but just to be sure that none of Sonic's mid-air moves get triggered
+function void UpdateSonicJumpMoves()
+{
+	if (!Mario.isControlled())
+	{
+		base.UpdateSonicJumpMoves()
+	}
+}
+
+
+function void Character.UpdateGotHurtState.Sonic()
+{
+	if (Mario.isControlled())
+	{
+		if (mario.action != MARIO_ACT_HURT)
+		{
+			Mario.setAction(MARIO_ACT_HURT, 0)
+			mario.voicePlayed = 0
+			Mario.voice("mario_attacked")
+		}
+		mario.wasControlled = 1
+	}
+	base.Character.UpdateGotHurtState.Sonic()
+}
+
+
+function void Character.UpdateDiedState.Sonic()
+{
+	if (Mario.isControlled() && mario.action != MARIO_ACT_DEAD)
+	{
+		Mario.setAction(MARIO_ACT_DEAD, 0)
+		mario.voicePlayed = 0
+		Mario.voice("mario_waaaooow")
+	}
+	base.Character.UpdateDiedState.Sonic()
+}
+
+
+function void Character.UpdateDrownedState.Sonic()
+{
+	if (Mario.isControlled() && mario.action != MARIO_ACT_DEAD)
+	{
+		Mario.setAction(MARIO_ACT_DEAD, 0)
+		mario.voicePlayed = 0
+		Mario.voice("mario_mammamia")
+	}
+	base.Character.UpdateDrownedState.Sonic()
+}
+
+
+// Mario does not use Sonic's Spindash and Super Peel-Out (also in case anything else calls these)
+function bool Character.UpdateSpindash()
+{
+	if (Mario.isControlled())
+		return false
+	return base.Character.UpdateSpindash()
+}
+
+function bool Character.updateSuperPeelout()
+{
+	if (Mario.isControlled())
+		return false
+	return base.Character.updateSuperPeelout()
+}
+
+
+
+//-------------------------------------------------------//
+// Ground, air and water frames                          //
+//-------------------------------------------------------//
+
+function void Mario.groundFrame()
+{
+	if (char.flags & char.flag.UNDERWATER)
+	{
+		Mario.waterFrame()
+		return
+	}
+
+	if (mario.tick)
+	{
+		Mario.syncFromEngine(false)
+		Mario.updateInputs(true)
+
+		mario.groundStepHitWall = mario.stepHitWall
+		mario.stepHitWall = 0
+		mario.stepHitCeiling = 0
+
+		if (Mario.isAirAction(mario.action) || Mario.isWaterAction(mario.action) || mario.action == MARIO_ACT_FORCED_ROLL)
+		{
+			Mario.onLanding()
+		}
+
+		Mario.executeAction()
+		Mario.tickAnimation()
+
+		if (Mario.isAirAction(mario.action))
+		{
+			// Jumped off the ground
+			Mario.takeOff()
+			return
+		}
+	}
+
+	Mario.applyGroundMovement()
+}
+
+
+function void Mario.applyGroundMovement()
+{
+	mario.velY = 0.0f
+	s16 gs = Mario.toEngine(mario.fwd * Mario.sins(mario.yaw))
+	char.groundspeed = gs
+	Mario.updateFacingFlag()
+
+	char.velocity.x = (s32(lookupCos(char.rotation)) * gs) >> 8
+	char.velocity.y = (s32(lookupSin(char.rotation)) * gs) >> 8
+
+	// Walls
+	Character.UpdateControlOnGroundShared()
+	if (gs != 0 && char.groundspeed == 0)
+	{
+		mario.stepHitWall = 1
+		char.flags |= char.flag.PUSHING
+	}
+	else if (gs != 0)
+	{
+		char.flags &= ~char.flag.PUSHING
+	}
+
+	// Movement, rotation and ground contact
+	Character.sharedUpdateOnGround()
+
+	mario.setGs = char.groundspeed
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+}
+
+
+// Leaving the ground with an airborne action
+function void Mario.takeOff()
+{
+	char.flags |= char.flag.IN_AIR
+	char.flags &= ~(char.flag.PUSHING | char.flag.ON_OBJECT)
+	char.jumping = 1
+	char.on_convex_surface = 0
+
+	// Move along the ground with the forward velocity, and away from it with the vertical velocity
+	float gs = mario.fwd * Mario.sins(mario.yaw) * mario.velScale
+	float vy = mario.velY * mario.velScale
+	float c = float(lookupCos(char.rotation)) / 256.0f
+	float s = float(lookupSin(char.rotation)) / 256.0f
+	float vx = c * gs + s * vy
+	float vye = s * gs - c * vy
+	if (global.inv_gravity)
+		vye = -vye
+
+	char.velocity.x = s16(Mario.toInt(clamp(vx, -6144.0f, 6144.0f)))
+	char.velocity.y = s16(Mario.toInt(clamp(vye, -6144.0f, 6144.0f)))
+	char.groundspeed = 0
+
+	if (!Mario.onFloorQuadrant())
+	{
+		// Jumping off a wall or ceiling: the result is not just vertical any more
+		Mario.adoptEngineVelocityX()
+		mario.velY = -Mario.fromEngine(global.inv_gravity ? -char.velocity.y : char.velocity.y)
+	}
+
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+	mario.setGs = 0
+	Mario.updateFacingFlag()
+}
+
+
+function void Mario.airFrame()
+{
+	if (char.flags & char.flag.UNDERWATER)
+	{
+		Mario.waterFrame()
+		return
+	}
+
+	if (mario.tick)
+	{
+		Mario.syncFromEngine(true)
+		Mario.updateInputs(false)
+
+		if (!Mario.isAirAction(mario.action))
+		{
+			Mario.onLeftGround()
+		}
+
+		Mario.handleAirStepResults()
+		Mario.executeAction()
+		Mario.tickAnimation()
+
+		if (!Mario.isAirAction(mario.action))
+		{
+			// Should not happen, but make sure there's no ground action in the air
+			Mario.setAction(MARIO_ACT_FREEFALL, 0)
+		}
+
+		Mario.setAirVelocity()
+		Mario.applyGravity()
+	}
+
+	Mario.moveInAir()
+}
+
+
+function void Mario.setAirVelocity()
+{
+	if ((mario.action == MARIO_ACT_GROUND_POUND && mario.actionState == 0) || mario.action == MARIO_ACT_AIR_HIT_WALL)
+	{
+		// No movement at all
+		char.velocity.x = 0
+		char.velocity.y = 0
+	}
+	else
+	{
+		char.velocity.x = Mario.toEngine(mario.fwd * Mario.sins(mario.yaw))
+		s16 vy = -Mario.toEngine(mario.velY)
+		char.velocity.y = global.inv_gravity ? -vy : vy
+	}
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+}
+
+
+function void Mario.moveInAir()
+{
+	Character.CheckAgainstMoveBorders()
+	UpdateMovementStraight()
+	Character.UpdateRotationInAir()
+
+	s16 vx = char.velocity.x
+	s16 vy = global.inv_gravity ? -char.velocity.y : char.velocity.y
+	Character.CheckCollision()
+
+	if (char.flags & char.flag.IN_AIR)
+	{
+		s16 newVy = global.inv_gravity ? -char.velocity.y : char.velocity.y
+		if (vx != 0 && char.velocity.x == 0)
+			mario.stepHitWall = 1
+		if (vy < 0 && newVy == 0)
+			mario.stepHitCeiling = 1
+	}
+
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+	mario.setGs = char.groundspeed
+	Mario.updateFacingFlag()
+}
+
+
+function void Mario.updateFacingFlag()
+{
+	s32 gfxYaw = mario.yaw + (mario.gfxFlip ? 0x8000 : 0)
+	float s = Mario.sins(gfxYaw)
+	if (s < 0.0f)
+		char.flags |= char.flag.FACING_LEFT
+	else if (s > 0.0f)
+		char.flags &= ~char.flag.FACING_LEFT
+}
+
+
+
+//-------------------------------------------------------//
+// Inputs                                                //
+//-------------------------------------------------------//
+
+function void Mario.updateInputs(bool onGround)
+{
+	u8 state = control.player1.state
+
+	mario.inAPressed = mario.pendA
+	mario.inBPressed = mario.pendB
+	mario.inZPressed = mario.pendZ
+	mario.pendA = 0
+	mario.pendB = 0
+	mario.pendZ = 0
+
+	mario.inADown = (state & (CONTROL_A | CONTROL_B)) ? 1 : 0
+	mario.inZDown = (state & CONTROL_DOWN) ? 1 : 0
+	mario.inUp = (state & CONTROL_UP) ? 1 : 0
+
+	s8 stick = 0
+	if (!onGround || char.hlock_countdown == 0)
+	{
+		if (state & CONTROL_LEFT)
+			stick -= 1
+		if (state & CONTROL_RIGHT)
+			stick += 1
+	}
+
+	mario.inAnalog = (stick != 0) ? 1 : 0
+	mario.intendedMag = (stick != 0) ? 32.0f : 0.0f
+	if (stick != 0)
+		mario.intendedYaw = (stick > 0) ? 0x4000 : -0x4000
+	else
+		mario.intendedYaw = mario.yaw
+
+	mario.inUnknown5 = (mario.inAnalog == 0 && mario.inAPressed == 0) ? 1 : 0
+	mario.inAboveSlide = (onGround && Mario.onFloorQuadrant() && Mario.floorIsSlippery()) ? 1 : 0
+
+	if (mario.wallKickTimer > 0)
+		--mario.wallKickTimer
+	if (mario.doubleJumpTimer > 0)
+		--mario.doubleJumpTimer
+}
+
+function bool Mario.analogStickHeldBack()
+{
+	s16 d = s16(mario.intendedYaw - mario.yaw)
+	return (mario.inAnalog != 0) && (d < -0x471c || d > 0x471c)
+}
+
+
+
+//-------------------------------------------------------//
+// Syncing with changes made by Sonic 3's code           //
+//-------------------------------------------------------//
+
+function void Mario.adoptEngineVelocityX()
+{
+	float vx = Mario.fromEngine(char.velocity.x)
+	float s = Mario.sins(mario.yaw)
+	if (abs(s) > 0.5f && ((vx >= 0.0f) == (s >= 0.0f) || mario.fwd < 0.0f))
+	{
+		mario.fwd = vx / s
+	}
+	else
+	{
+		mario.yaw = (vx < 0.0f) ? -0x4000 : 0x4000
+		mario.fwd = abs(vx)
+	}
+}
+
+
+function void Mario.syncFromEngine(bool inAir)
+{
+	if (mario.wasControlled)
+	{
+		// Some object (or getting hurt) controlled the character, so take over its velocity
+		mario.wasControlled = 0
+		mario.gfxFlip = 0
+		if (inAir)
+		{
+			Mario.adoptEngineVelocityX()
+			float vy = -Mario.fromEngine(global.inv_gravity ? -char.velocity.y : char.velocity.y)
+			mario.velY = (vy > 0.0f) ? vy * mario.impulseScale : vy
+			if (mario.action != MARIO_ACT_HURT && !Mario.isWaterAction(mario.action))
+				Mario.setAction((vy > 0.0f) ? MARIO_ACT_LAUNCHED : MARIO_ACT_FREEFALL, 0)
+		}
+		else
+		{
+			mario.fwd = abs(Mario.fromEngine(char.groundspeed))
+			if (char.groundspeed != 0)
+				mario.yaw = (char.groundspeed < 0) ? -0x4000 : 0x4000
+			if (mario.action == MARIO_ACT_HURT || Mario.isAirAction(mario.action))
+				Mario.setAction((mario.fwd > 0.0f) ? MARIO_ACT_WALKING : MARIO_ACT_IDLE, 0)
+		}
+		return
+	}
+
+	if (inAir)
+	{
+		bool changedX = abs(s32(char.velocity.x) - s32(mario.setVx)) > 2
+		bool changedY = abs(s32(char.velocity.y) - s32(mario.setVy)) > 2
+		if (changedX)
+		{
+			Mario.adoptEngineVelocityX()
+		}
+		if (changedY)
+		{
+			s16 oldVy = global.inv_gravity ? -mario.setVy : mario.setVy
+			s16 newVy = global.inv_gravity ? -char.velocity.y : char.velocity.y
+			float vy = -Mario.fromEngine(newVy)
+			if (newVy < 0 && (char.state == char.state.STRAIGHTJUMP || newVy <= -0x800))
+			{
+				// Launched by a spring or similar
+				mario.velY = vy * mario.impulseScale
+				Mario.setAction(MARIO_ACT_LAUNCHED, 0)
+				mario.jumpFlag = 0
+			}
+			else if (newVy < 0 && oldVy > 0)
+			{
+				// Bounced off an enemy or monitor, like stomping a Goomba
+				mario.velY = mario.inADown ? 50.0f : 30.0f
+				mario.jumpFlag = 0
+				if (mario.action == MARIO_ACT_GROUND_POUND || mario.action == MARIO_ACT_DIVE || mario.action == MARIO_ACT_SLIDE_KICK)
+					Mario.setAction(MARIO_ACT_FREEFALL, 0)
+			}
+			else if (newVy < 0)
+			{
+				mario.velY = vy * mario.impulseScale
+			}
+			else
+			{
+				mario.velY = vy
+			}
+		}
+	}
+	else
+	{
+		if (abs(s32(char.groundspeed) - s32(mario.setGs)) > 2)
+		{
+			// E.g. horizontal springs
+			mario.fwd = abs(Mario.fromEngine(char.groundspeed))
+			if (char.groundspeed != 0)
+				mario.yaw = (char.groundspeed < 0) ? -0x4000 : 0x4000
+			if (Mario.isGroundStationaryAction(mario.action))
+				Mario.setAction(MARIO_ACT_WALKING, 0)
+		}
+	}
+}
+
+
+
+//-------------------------------------------------------//
+// Character state for Sonic 3's code                    //
+//-------------------------------------------------------//
+
+// States that Mario's code sets; everything else is set by objects and left alone
+function bool Mario.isMarioOwnedState(u8 st)
+{
+	return (st == char.state.RUNNING || st == char.state.RUNNING2 || st == char.state.ROLLING || st == char.state.ROLLING2 || st == char.state.PUSHING || st == char.state.STANDING || st == char.state.BALANCING1 || st == char.state.BALANCING2 || st == char.state.LOOKING_UP || st == char.state.COWERING || st == char.state.SPINDASH || st == char.state.BRAKING || st == char.state.STRAIGHTJUMP || st == char.state.SONIC_DROPDASH || st == char.state.FALLING_PANIC || st == char.state.GOT_HURT_PANIC)
+}
+
+
+function void Mario.updateEngineState()
+{
+	if (char.control_flags & control_flag.DISABLE_UPDATE)
+		return
+	if (char.base_state != base_state.NORMAL)
+		return
+	if (!Mario.isMarioOwnedState(char.state))
+		return
+
+	bool inAir = (char.flags & char.flag.IN_AIR) != 0
+	u8 act = mario.action
+	u8 st = char.state.RUNNING
+
+	// Sonic 3 enemies, monitors and bosses get destroyed by the "rolling" state
+	if (Mario.isAttacking())
+	{
+		st = char.state.ROLLING
+	}
+	else if (inAir)
+	{
+		st = (char.state == char.state.STRAIGHTJUMP && mario.velY > 0.0f) ? char.state.STRAIGHTJUMP : char.state.RUNNING
+	}
+	else if (act == MARIO_ACT_START_CROUCHING || act == MARIO_ACT_CROUCHING || act == MARIO_ACT_STOP_CROUCHING || act == MARIO_ACT_START_CRAWLING || act == MARIO_ACT_CRAWLING || act == MARIO_ACT_STOP_CRAWLING)
+	{
+		st = char.state.COWERING
+	}
+	else if (act == MARIO_ACT_BRAKING || act == MARIO_ACT_TURNING_AROUND)
+	{
+		st = char.state.BRAKING
+	}
+	else if (mario.anim == 0x6c)
+	{
+		st = char.state.PUSHING
+	}
+	else if (char.groundspeed == 0)
+	{
+		st = char.state.STANDING
+	}
+	char.state = st
+	Mario.applyWallBoost()
+}
+
+
+// Sonic 3's breakable rocks and walls need a fast roll (speed 0x480). Mario breaks them with his
+// attacks instead, like SM64's breakable boxes: while attacking, the velocity the wall objects see
+// is raised to that speed. It gets reset before the next character update, so it doesn't move Mario.
+function void Mario.applyWallBoost()
+{
+	u8 act = mario.action
+	bool strong = (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING)
+	if (!strong || char.state != char.state.ROLLING)
+		return
+
+	s16 vx = char.velocity.x
+	if (abs(vx) >= 0x480)
+		return
+
+	s16 dir = (char.flags & char.flag.FACING_LEFT) ? -1 : 1
+	if (vx != 0)
+	{
+		dir = (vx < 0) ? -1 : 1
+	}
+	mario.wallBoost = 1
+	mario.wallBoostRealVx = vx
+	mario.wallBoostRealGs = char.groundspeed
+	mario.wallBoostVx = dir * 0x480
+	char.velocity.x = mario.wallBoostVx
+}
+
+
+function void Mario.undoWallBoost()
+{
+	if (mario.wallBoost == 0)
+		return
+	mario.wallBoost = 0
+
+	// A wall that broke keeps the raised value, one that blocked Mario has set it to 0
+	if (char.velocity.x == mario.wallBoostVx)
+	{
+		char.velocity.x = mario.wallBoostRealVx
+	}
+	if (char.groundspeed == mario.wallBoostVx)
+	{
+		char.groundspeed = mario.wallBoostRealGs
+	}
+}
+
+
+function bool Mario.isAttacking()
+{
+	u8 act = mario.action
+	if (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_GROUND_POUND || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_BUTT_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_STOMACH_SLIDE || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_FORCED_ROLL || act == MARIO_ACT_GROUND_POUND_LAND)
+	{
+		return true
+	}
+
+	// Jumping on enemies from above defeats them
+	if ((char.flags & char.flag.IN_AIR) && mario.velY < 0.0f)
+	{
+		return (act != MARIO_ACT_HURT && act != MARIO_ACT_SOFT_BONK && act != MARIO_ACT_BACKWARD_AIR_KB && act != MARIO_ACT_AIR_HIT_WALL)
+	}
+	return false
+}

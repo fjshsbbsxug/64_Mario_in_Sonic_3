@@ -96,7 +96,8 @@ def build(rom_path, out_dir, install, voices):
     model = mdl.Model(romdata.mario_segment(rom))
     anims = romdata.load_animations(rom)
 
-    head, portrait = sprites.render_all(model, anims, sprites_dir, progress_bar)
+    head, portrait = sprites.render_all(model, anims, sprites_dir,
+                                         os.path.join(mod_dir, "scripts", "mario_animdata.lemon"), progress_bar)
     print("Creating icons...")
     icons.write_icons(head, portrait, sprites_dir, mod_dir)
 
