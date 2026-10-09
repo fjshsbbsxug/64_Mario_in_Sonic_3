@@ -1,24 +1,17 @@
 """
 Renders Mario's in-game sprite sheet for the Sonic 3 A.I.R. mod.
 
-Usage:
-    python3 gen_sprites.py <sm64 decomp dir> <sm64 US rom .z64> <output sprites dir>
-
-Produces:
-    character_mario.png / character_mario.json   - all in-game character sprites
-    mario_icons.png / mario_icons.json            - lives icon, data select portrait
+Produces character_mario.png / character_mario.json with all in-game character sprites,
+plus the raw renders used for the icons.
 """
 
-import json
 import math
 import os
-import sys
 
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import sm64model as sm  # noqa: E402
+import model as mdl
 
 
 SS = 4                    # supersampling factor
@@ -36,7 +29,7 @@ ROLLING = 14
 
 def frames_even(anim, n, first=None, last=None):
     a = anim["start"] if first is None else first
-    b = sm.anim_num_frames(anim) - 1 if last is None else last
+    b = mdl.anim_num_frames(anim) - 1 if last is None else last
     if n == 1:
         return [int(round((a + b) / 2))]
     return [int(round(a + (b - a) * i / (n - 1))) for i in range(n)]
@@ -45,7 +38,7 @@ def frames_even(anim, n, first=None, last=None):
 def frames_cycle(anim, n):
     """For looping animations: n frames evenly over the full loop (last frame != first)."""
     a = anim["loop_start"]
-    b = sm.anim_num_frames(anim)
+    b = mdl.anim_num_frames(anim)
     return [int(a + (b - a) * i / n) for i in range(n)]
 
 
@@ -97,7 +90,7 @@ def select_frames(anim, sel):
     if kind == "at":
         return sel[1]
     if kind == "last":
-        n = sm.anim_num_frames(anim)
+        n = mdl.anim_num_frames(anim)
         return [n - 1 - i for i in range(sel[1])][::-1]
     raise ValueError(kind)
 
@@ -121,14 +114,14 @@ def downsample(img, ss):
 
 def render_sprite(model, anims, anim_id, frame, opts, px_per_unit=PX_PER_UNIT, canvas=CANVAS):
     anim = anims[anim_id]
-    mats = sm.pose_matrices(anim, frame)
-    soup = sm.build_soup(model, mats, eyes=opts.get("eyes", "front"),
-                         lhand=opts.get("lhand", "fist"), rhand=opts.get("rhand", "fist"))
-    view = sm.view_matrix(opts.get("yaw", YAW), opts.get("pitch", PITCH))
+    mats = mdl.pose_matrices(anim, frame)
+    soup = mdl.build_soup(model, mats, eyes=opts.get("eyes", "front"),
+                          lhand=opts.get("lhand", "fist"), rhand=opts.get("rhand", "fist"))
+    view = mdl.view_matrix(opts.get("yaw", YAW), opts.get("pitch", PITCH))
     anchor = opts.get("anchor", UPRIGHT)
     center = canvas // 2
-    hi = sm.render(soup, view, (canvas, canvas), px_per_unit,
-                   (center, center + anchor), LIGHT, ss=SS)
+    hi = mdl.render(soup, view, (canvas, canvas), px_per_unit,
+                    (center, center + anchor), LIGHT, ss=SS)
     return downsample(hi, SS), (center, center)
 
 
@@ -198,26 +191,19 @@ def save_sheet(sheet, placed, png_path, json_path):
         f.write("{\n" + ",\n".join(lines) + "\n}\n")
 
 
-def main():
-    decomp, rom, outdir = sys.argv[1:4]
-    os.makedirs(outdir, exist_ok=True)
-    model, anims = sm.load_model(decomp, rom)
-
+def render_all(model, anims, outdir, progress=None):
+    """Renders the sprite sheet into outdir. Returns (head image, portrait image) for the icons."""
     rendered = []
-    counts = {}
+    total = sum(len(select_frames(anims[aid], sel)) for _n, aid, sel, _o in SPRITES)
     for name, aid, sel, opts in SPRITES:
-        frames = select_frames(anims[aid], sel)
-        counts[name] = len(frames)
-        for i, f in enumerate(frames):
+        for i, f in enumerate(select_frames(anims[aid], sel)):
             img, center = render_sprite(model, anims, aid, f, opts)
             rendered.append(("mario_%s_%d" % (name, i), img, center))
+            if progress:
+                progress(len(rendered), total)
 
-    # Icons: lives icon head and data select portrait
-    icons = []
     head, hc = render_sprite(model, anims, 0xC5, 0, dict(yaw=35, pitch=5, anchor=40), px_per_unit=0.36, canvas=96)
-    icons.append(("mario_icon_head_raw", head, hc))
     portrait, pc = render_sprite(model, anims, 0xC5, 0, dict(yaw=40, pitch=5), px_per_unit=0.255)
-    icons.append(("mario_icon_portrait_raw", portrait, pc))
 
     pal = build_palette([r[1] for r in rendered], 26)
     final = []
@@ -229,18 +215,8 @@ def main():
     save_sheet(sheet, placed, os.path.join(outdir, "character_mario.png"),
                os.path.join(outdir, "character_mario.json"))
 
-    # Icons get post-processed separately in build_mod.py
-    for key, img, center in icons:
-        img = apply_palette(img, pal)
-        img, c = trim(img, center)
-        Image.fromarray((img * 255).round().astype(np.uint8), "RGBA").save(os.path.join(outdir, key + ".png"))
-        with open(os.path.join(outdir, key + ".center"), "w") as f:
-            f.write("%d,%d\n" % c)
+    def to_image(img):
+        img, _c = trim(apply_palette(img, pal), (0, 0))
+        return Image.fromarray((img * 255).round().astype(np.uint8), "RGBA")
 
-    with open(os.path.join(outdir, "mario_frame_counts.json"), "w") as f:
-        json.dump(counts, f, indent=1)
-    print("Rendered %d sprites" % len(final))
-
-
-if __name__ == "__main__":
-    main()
+    return to_image(head), to_image(portrait)

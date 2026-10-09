@@ -6,3 +6,5 @@ __pycache__/
 *.z64
 *.n64
 *.bin
+output/
+dist/
