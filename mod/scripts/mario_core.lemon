@@ -221,6 +221,7 @@ function bool Mario.onFloorQuadrant()
 // Character selection                                   //
 //-------------------------------------------------------//
 
+//# address-hook(0x0067b6) end(0x0067ec)
 function void SetGlobalCharacters()
 {
 	u16 selection = levelselect.characters
@@ -287,6 +288,7 @@ function void Mario.resetState()
 // Hooks into the Sonic character update                 //
 //-------------------------------------------------------//
 
+//# address-hook(0x010bba) end(0x010c8e)
 function void Character.UpdateNormalState.Sonic()
 {
 	Mario.undoWallBoost()
@@ -332,6 +334,7 @@ function void Character.UpdateNormalState.Sonic()
 
 
 // Rolling on the ground is only forced by level objects (like tubes), leave that to the original code
+//# address-hook(0x010fe0) end(0x011034)
 function void Character.UpdateSonicRollingOnGround()
 {
 	if (!Mario.isControlled())
@@ -356,6 +359,7 @@ function void Character.UpdateSonicRollingOnGround()
 }
 
 
+//# address-hook(0x010f2c) end(0x010f82)
 function void Character.UpdateSonicUprightOnGround()
 {
 	if (!Mario.isControlled())
@@ -367,6 +371,7 @@ function void Character.UpdateSonicUprightOnGround()
 }
 
 
+//# address-hook(0x011036) end(0x01105e)
 function void Character.UpdateSonicRollingInAir()
 {
 	if (!Mario.isControlled())
@@ -379,6 +384,7 @@ function void Character.UpdateSonicRollingInAir()
 
 
 // Not used by Mario, but just to be sure that none of Sonic's mid-air moves get triggered
+//# address-hook(0x0118bc) end(0x011afc)
 function void UpdateSonicJumpMoves()
 {
 	if (!Mario.isControlled())
@@ -388,6 +394,7 @@ function void UpdateSonicJumpMoves()
 }
 
 
+//# address-hook(0x0122be) end(0x012312)
 function void Character.UpdateGotHurtState.Sonic()
 {
 	if (Mario.isControlled())
@@ -404,6 +411,7 @@ function void Character.UpdateGotHurtState.Sonic()
 }
 
 
+//# address-hook(0x012390) end(0x0123bc)
 function void Character.UpdateDiedState.Sonic()
 {
 	if (Mario.isControlled() && mario.action != MARIO_ACT_DEAD)
@@ -416,6 +424,7 @@ function void Character.UpdateDiedState.Sonic()
 }
 
 
+//# address-hook(0x0125ac) end(0x0125da)
 function void Character.UpdateDrownedState.Sonic()
 {
 	if (Mario.isControlled() && mario.action != MARIO_ACT_DEAD)

@@ -8,6 +8,7 @@
 
 
 // Character selection with up / down
+//# address-hook(0x00d6d0) end(0x00d70a)
 function void fn00d6d0()
 {
 	u8 character = D0.u8
@@ -51,6 +52,7 @@ function bool Mario.isDataSelectMarioObject()
 
 
 // Character icons: there's no mapping frame for Mario, so use Sonic's and replace it when rendering
+//# address-hook(0x00d69e) end(0x00d6ca)
 function void fn00d69e()
 {
 	if (Mario.isDataSelectMarioObject() && objA0.animation.sprite == CHARS_MARIO + 4)
@@ -87,6 +89,7 @@ function bool Standalone.onDrawVdpSpriteCompound(s16 px, s16 py, u8 size, u16 in
 
 
 // Lives & continues icons in the save slots: show Sonic's for Mario (there's no other plane tile data for him)
+//# address-hook(0x00c97a) end(0x00ca12)
 function void fn00c97a()
 {
 	A2 = 0x00da8a
