@@ -80,6 +80,22 @@ M64.sprites = (function()
 		[0x0B, 8, -2, 10, 0x47, 1.0, null],
 		[0x0C, 22, -2, 9, 0x47, 1.0, null],
 	];
+	// AIZ 1 hollow tree: Mario running around the trunk, seen from 8 directions ("mario_tree_<dir>_<frame>").
+	// Direction 0 runs to the right, 2 away from the camera, 4 to the left, 6 towards the camera.
+	const TREE_DIRECTIONS = 8;
+	const TREE_FRAMES = 4;
+	const TREE_ANIM = 0x72;		// running
+
+	function treeSpriteJobs(anims)
+	{
+		const loopEnd = Math.max(1, anims[TREE_ANIM].loopEnd);
+		const jobs = [];
+		for (let d = 0; d < TREE_DIRECTIONS; ++d)
+			for (let f = 0; f < TREE_FRAMES; ++f)
+				jobs.push(["mario_tree_" + d + "_" + f, TREE_ANIM, Math.floor(f * loopEnd / TREE_FRAMES), { yaw: YAW + 45 + d * 45 }]);
+		return jobs;
+	}
+
 	const SNOWBOARD_CANVAS = 96;
 	const BOARD_LENGTH = 46;
 	const BOARD_THICKNESS = 4;
@@ -388,6 +404,7 @@ M64.sprites = (function()
 			animSpriteFrames(anims[aid], step).forEach((f, i) => jobs.push(["mario_" + hex2(aid) + "_" + i, aid, f, opts]));
 		for (const [xid, aid, frames, opts] of EXTRA)
 			frames.forEach((f, i) => jobs.push(["mario_" + hex2(xid) + "_" + i, aid, f, opts]));
+		jobs.push(...treeSpriteJobs(anims));
 
 		const rendered = [];
 		for (const [key, aid, f, opts] of jobs)

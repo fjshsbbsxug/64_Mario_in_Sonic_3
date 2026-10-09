@@ -101,7 +101,47 @@ global s16 mario.wallBoostRealGs
 
 function bool Mario.isControlled()
 {
-	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC && !Mario.isSnowboarding())
+	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC && !Mario.isSnowboarding() && !Mario.isOnHollowTree())
+}
+
+
+// AIZ 1 hollow tree: while Mario runs around the trunk, the game's own physics move him (like Sonic: hold Right to keep climbing)
+function bool Mario.isOnHollowTree()
+{
+	if (global.zone_act != 0x0000 || (u8[0xffffb000 + 0x2a] & char.flag.ON_OBJECT) == 0)
+		return false
+	return (u32[0xffff0000 + u16[0xffffb000 + 0x42]] == 0x01f752)
+}
+
+
+// Progress around the hollow tree trunk (0..255 for one turn), for Mario's sprite
+function u8 Mario.getHollowTreePhase()
+{
+	u32 tree = 0xffff0000 + u16[0xffffb000 + 0x42]
+	return u8(u16[tree + 0x30] >> 1)
+}
+
+
+// The hollow tree only takes characters running at Sonic's top speed (0x600). Mario's SM64 running speed is
+// lower (depending on the world scale setting), so let it take him when he runs at it.
+function void fn01f7ce()
+{
+	u8 bit = (1 << D6.u8)
+	bool boost = false
+	s16 vx = s16[0xffffb000 + 0x18]
+	if (mario.active && A1 == 0xffffb000 && (objA0.flags2a & bit) == 0 && (u8[0xffffb000 + 0x2a] & char.flag.IN_AIR) == 0)
+	{
+		boost = (vx > 0 && vx < 0x600 && mario.fwd >= 22.0f && u8[0xffffb000 + 0x2e] == 0)
+	}
+
+	if (boost)
+		s16[0xffffb000 + 0x18] = 0x600
+	base.fn01f7ce()
+	if (boost && (objA0.flags2a & bit) == 0)
+	{
+		// Not taken by the tree
+		s16[0xffffb000 + 0x18] = vx
+	}
 }
 
 
@@ -314,14 +354,23 @@ function void Mario.resetState()
 function void Character.UpdateNormalState.Sonic()
 {
 	Mario.undoWallBoost()
+	if (mario.active && A0 == 0xffffb000)
+	{
+		// The mod's update hook is running (for the warning in Mario.checkMovementCodeRunning)
+		mario.updateFrame = level.framecounter
+		mario.missedUpdates = 0
+	}
+
 	if (!Mario.isControlled())
 	{
+		if (mario.active && A0 == 0xffffb000)
+		{
+			// The game moves Mario in some places (snowboard, hollow tree); take over its velocity afterwards
+			mario.wasControlled = 1
+		}
 		base.Character.UpdateNormalState.Sonic()
 		return
 	}
-
-	mario.updateFrame = level.framecounter
-	mario.missedUpdates = 0
 
 	// Mario never uses Sonic's specials
 	sonic.dropdash_counter = 0

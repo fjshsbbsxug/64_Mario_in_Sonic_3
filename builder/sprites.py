@@ -89,6 +89,22 @@ SNOWBOARD = [
     (0x0B, 8, -2, 10, 0x47, 1.0, None),
     (0x0C, 22, -2, 9, 0x47, 1.0, None),
 ]
+# AIZ 1 hollow tree: Mario running around the trunk, seen from 8 directions ("mario_tree_<dir>_<frame>").
+# Direction 0 runs to the right, 2 away from the camera, 4 to the left, 6 towards the camera.
+TREE_DIRECTIONS = 8
+TREE_FRAMES = 4
+TREE_ANIM = 0x72        # running
+
+
+def tree_sprite_jobs(anims):
+    loop_end = max(1, anims[TREE_ANIM]["loop_end"])
+    jobs = []
+    for d in range(TREE_DIRECTIONS):
+        for f in range(TREE_FRAMES):
+            jobs.append(("mario_tree_%d_%d" % (d, f), TREE_ANIM, f * loop_end // TREE_FRAMES, {"yaw": YAW + 45 + d * 45}))
+    return jobs
+
+
 SNOWBOARD_CANVAS = 96
 BOARD_LENGTH = 46
 BOARD_THICKNESS = 4
@@ -246,6 +262,7 @@ def render_all(model, anims, outdir, script_path, progress=None):
     for xid, aid, frames, opts in EXTRA:
         for i, f in enumerate(frames):
             jobs.append(("mario_%02x_%d" % (xid, i), aid, f, opts))
+    jobs += tree_sprite_jobs(anims)
 
     rendered = []
     for key, aid, f, opts in jobs:

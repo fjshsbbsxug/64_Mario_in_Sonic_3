@@ -66,6 +66,14 @@ function u64 Mario.getSpriteKey()
 	if (st == char.state.BREATHE)
 		return Mario.spriteKey(0x50, 2)
 
+	// Running around the hollow tree trunk in AIZ 1
+	if (Mario.isOnHollowTree())
+	{
+		u8 direction = ((u16(Mario.getHollowTreePhase()) + 16) >> 5) & 7
+		u8 frame = (level.framecounter >> 2) & 3
+		return stringformat("mario_tree_%d_%d", direction, frame)
+	}
+
 	// Rolling down the mountain at the start of ICZ 1
 	if (Mario.isSnowboarding() && st == char.state.ROLLING)
 		return Mario.loopingSpriteKey(0x6f, 1)
@@ -114,7 +122,7 @@ function void Mario.checkMovementCodeRunning()
 	if (mario.missedUpdates < 90)
 		return
 
-	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.1:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.2:", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)
@@ -144,6 +152,8 @@ function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s
 	}
 
 	u8 flags = (char.flags & char.flag.FACING_LEFT) ? SPRITE_FLAG_FLIP_X : 0
+	if (Mario.isOnHollowTree())
+		flags = 0		// The tree sprites cover all directions
 	if (global.inv_gravity)
 		flags |= SPRITE_FLAG_FLIP_Y
 	if (char.sprite_attributes & sprite_attribute.PRIORITY)
