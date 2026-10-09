@@ -83,6 +83,12 @@ small { color: var(--muted); }
 	<h1>Mario 64 for Sonic 3 A.I.R.</h1>
 	<p class="sub">Mod builder <span id="version"></span>. Builds the mod from your own Super Mario 64 (USA) ROM, right on this device.</p>
 
+	<div id="notStarted" class="card" style="color: var(--err); font-weight: 600;">
+		The builder hasn't started.
+		If you opened this file in a file viewer or preview (for example from a file manager or the Files app), these usually don't run the page's code.
+		Open the file in a web browser instead, like Chrome, Firefox, Samsung Internet or Safari.
+	</div>
+
 	<div class="card">
 		<h2><span class="step">1</span>Choose your ROM</h2>
 		<p>Super Mario 64 (USA), as <code>.z64</code>, <code>.v64</code> or <code>.n64</code>.</p>
@@ -143,6 +149,20 @@ small { color: var(--muted); }
 	let result = null;
 
 	$("version").textContent = "v" + (window.M64_VERSION || "?");
+
+	// Show unexpected errors on the page, so they can be reported
+	window.addEventListener("error", e =>
+	{
+		$("error").textContent += "Error: " + e.message + " (" + (e.filename || "").split("/").pop() + ":" + e.lineno + ")\n";
+	});
+
+	if (!window.M64 || !M64.build || !window.M64_MOD_FILES)
+	{
+		$("notStarted").textContent = "This browser can't run the builder (it's too old, or parts of the page didn't load). " +
+			"Please use a current version of Chrome, Firefox, Samsung Internet or Safari.\n\n" + navigator.userAgent;
+		return;
+	}
+	$("notStarted").classList.add("hidden");
 	if (!app)
 	{
 		$("androidHelp").classList.add("hidden");
@@ -209,6 +229,14 @@ small { color: var(--muted); }
 				},
 			});
 			$("bar").style.width = "100%";
+
+			// Make sure that everything the mod needs is in there
+			const names = result.files.map(f => f[0]);
+			const required = Object.keys(window.M64_MOD_FILES).concat(["scripts/mario_animdata.lemon", "sprites/character_mario.png", "sprites/character_mario.json",
+				"sprites/hud_mario.png", "sprites/result_mario.png", "sprites/dataselect_mario.png"]);
+			const missing = required.filter(n => names.indexOf(n) < 0);
+			if (missing.length)
+				throw new Error("The built mod is incomplete, missing: " + missing.join(", "));
 			log("Done in " + Math.round((Date.now() - start) / 1000) + " seconds.");
 			$("doneText").textContent = "Mario64.zip is ready (" + Math.round(result.zip.length / 1024) + " KB)" +
 				(result.voices ? "." : ", without voice clips.");
@@ -219,7 +247,7 @@ small { color: var(--muted); }
 		catch (e)
 		{
 			console.log(e && e.stack || e);
-			$("error").textContent = "Error: " + (e && e.message || e);
+			$("error").textContent = "Error: " + (e && e.message || e) + "\n\n" + navigator.userAgent;
 		}
 		$("build").disabled = false;
 		$("pick").disabled = false;

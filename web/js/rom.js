@@ -43,16 +43,77 @@ M64.rom = (function()
 		throw new RomError("This file does not look like a Nintendo 64 ROM.");
 	}
 
+	// ROMs are often kept in .zip files: use the N64 ROM inside
+	async function unpackArchive(bytes)
+	{
+		const b = bytes;
+		if (b[0] === 0x37 && b[1] === 0x7A && b[2] === 0xBC && b[3] === 0xAF)
+			throw new RomError("This is a .7z archive. Please extract the ROM from it first (e.g. with ZArchiver or 7-Zip), then choose the .z64 file.");
+		if (b[0] === 0x52 && b[1] === 0x61 && b[2] === 0x72 && b[3] === 0x21)
+			throw new RomError("This is a .rar archive. Please extract the ROM from it first (e.g. with ZArchiver or 7-Zip), then choose the .z64 file.");
+		if (!(b[0] === 0x50 && b[1] === 0x4B && b[2] === 0x03 && b[3] === 0x04))
+			return bytes;
+
+		// Find the central directory
+		const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+		let eocd = -1;
+		for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); --i)
+		{
+			if (view.getUint32(i, true) === 0x06054b50)
+			{
+				eocd = i;
+				break;
+			}
+		}
+		if (eocd < 0)
+			throw new RomError("This .zip file seems to be damaged.");
+		const count = view.getUint16(eocd + 10, true);
+		let o = view.getUint32(eocd + 16, true);
+		let best = null;
+		for (let n = 0; n < count; ++n)
+		{
+			if (view.getUint32(o, true) !== 0x02014b50)
+				break;
+			const method = view.getUint16(o + 10, true);
+			const compSize = view.getUint32(o + 20, true);
+			const size = view.getUint32(o + 24, true);
+			const nameLen = view.getUint16(o + 28, true), extraLen = view.getUint16(o + 30, true), commentLen = view.getUint16(o + 32, true);
+			const localOffset = view.getUint32(o + 42, true);
+			const name = new TextDecoder().decode(b.subarray(o + 46, o + 46 + nameLen));
+			const isRom = /\.(z64|n64|v64|rom|bin)$/i.test(name);
+			if (size >= 0x400000 && (!best || (isRom && !best.isRom) || (isRom === best.isRom && size > best.size)))
+				best = { name, method, compSize, size, localOffset, isRom };
+			o += 46 + nameLen + extraLen + commentLen;
+		}
+		if (!best)
+			throw new RomError("No N64 ROM found inside this .zip file.");
+
+		const lo = best.localOffset;
+		const start = lo + 30 + view.getUint16(lo + 26, true) + view.getUint16(lo + 28, true);
+		const comp = b.subarray(start, start + best.compSize);
+		if (best.method === 0)
+			return comp.slice();
+		if (best.method !== 8 || typeof DecompressionStream === "undefined")
+			throw new RomError("Can't unpack this .zip file in this browser. Please extract the ROM from it first, then choose the .z64 file.");
+		const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+		return new Uint8Array(await new Response(stream).arrayBuffer());
+	}
+
 	async function loadRom(bytes)
 	{
-		const data = normalizeRom(bytes);
+		const data = normalizeRom(await unpackArchive(bytes));
 		const sha1 = await M64.util.sha1(data);
 		if (sha1 !== SM64_US_SHA1)
 		{
 			const name = String.fromCharCode(...data.subarray(0x20, 0x34)).trim();
 			const region = data.length > 0x3E ? String.fromCharCode(data[0x3E]) : "?";
-			throw new RomError("Unsupported ROM (internal name '" + name + "', region '" + region + "', SHA-1 " + sha1 + ").\n" +
-				"Please use an unmodified Super Mario 64 (USA) ROM.");
+			const regions = { E: "USA", P: "Europe", J: "Japan", U: "Australia" };
+			let hint = "Please use an unmodified Super Mario 64 (USA) ROM.";
+			if (name.toUpperCase().indexOf("MARIO 64") >= 0 && region !== "E")
+				hint = "This is the " + (regions[region] || region) + " version of Super Mario 64, but only the USA version is supported.";
+			else if (name.toUpperCase().indexOf("MARIO 64") >= 0)
+				hint = "This USA ROM is modified (e.g. a hack, patch or bad dump). Please use an unmodified one.";
+			throw new RomError(hint + "\n(ROM: '" + name + "', region '" + region + "', SHA-1 " + sha1 + ")");
 		}
 		return data;
 	}
