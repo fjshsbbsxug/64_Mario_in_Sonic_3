@@ -211,7 +211,8 @@ MOD_IDS = ("mario64-extra-slot", "mario64-sm64-movement")
 
 
 def _is_mario_mod_json(text):
-    return any('"%s"' % mod_id in text for mod_id in MOD_IDS)
+    # Version 1 and 2.1 - 2.2.7 used fixed IDs, later versions "mario64-sm64-movement-v<version>"
+    return any('"%s"' % mod_id in text for mod_id in MOD_IDS) or '"mario64-sm64-movement-v' in text
 
 
 def find_installed_copies(mods):
