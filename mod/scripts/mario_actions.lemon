@@ -1661,6 +1661,10 @@ function void Mario.applyGravity()
 	{
 		mario.velY /= 4.0f
 	}
+	else if (act == MARIO_ACT_LAUNCHED && (char.flags & char.flag.UNDERWATER))
+	{
+		mario.velY -= 1.25f		// Launched under water: lower gravity, like Sonic's
+	}
 	else
 	{
 		mario.velY -= 4.0f
@@ -2100,7 +2104,14 @@ function void Mario.updateSwimmingSpeed(float decelThreshold)
 		mario.fwd -= 2.0f
 	if (mario.fwd < 0.0f)
 		mario.fwd = 0.0f
-	if (mario.fwd > 28.0f)
+	if (mario.waterBoostTimer > 0)
+	{
+		// Pushed by a spring: slow down gradually
+		--mario.waterBoostTimer
+		if (mario.fwd > 28.0f)
+			mario.fwd = max(mario.fwd - 1.5f, 28.0f)
+	}
+	else if (mario.fwd > 28.0f)
 		mario.fwd = 28.0f
 	if (mario.fwd > decelThreshold)
 		mario.fwd -= 0.5f
@@ -2336,6 +2347,13 @@ function bool Mario.executeWaterAction(u8 act)
 }
 
 
+// Air actions that keep going under water while moving up: jumping out of the water, spring launches
+function bool Mario.isWaterLaunch(u8 act)
+{
+	return (act == MARIO_ACT_WATER_JUMP || act == MARIO_ACT_LAUNCHED)
+}
+
+
 function void Mario.waterFrame()
 {
 	bool onGround = (char.flags & char.flag.IN_AIR) == 0
@@ -2343,9 +2361,15 @@ function void Mario.waterFrame()
 	// SM64 keeps Mario's feet 80 units below the water surface
 	mario.waterSurfaceY = float(s16(water.height.current)) + 80.0f * mario.posScale - 19.0f
 
+	if (!mario.tick && (Mario.isWaterAction(mario.action) || Mario.isWaterLaunch(mario.action)))
+	{
+		// Objects (springs...) may change the velocity on any frame, so check every frame
+		Mario.syncFromEngine(!onGround)
+	}
+
 	if (mario.tick)
 	{
-		if (!Mario.isWaterAction(mario.action) && !(mario.action == MARIO_ACT_WATER_JUMP && mario.velY > 0.0f))
+		if (!Mario.isWaterAction(mario.action) && !(Mario.isWaterLaunch(mario.action) && mario.velY > 0.0f))
 		{
 			// Entering the water
 			Mario.adoptEngineVelocityX()
@@ -2355,6 +2379,7 @@ function void Mario.waterFrame()
 				mario.velY = 0.0f
 			Mario.setAction(MARIO_ACT_WATER_PLUNGE, 0)
 			mario.pitch = 0
+			mario.waterBoostTimer = 0
 		}
 		else
 		{
@@ -2367,9 +2392,9 @@ function void Mario.waterFrame()
 		Mario.executeAction()
 		Mario.tickAnimation()
 
-		if (mario.action == MARIO_ACT_WATER_JUMP)
+		if (Mario.isWaterLaunch(mario.action))
 		{
-			// Jump out of the water
+			// Jump out of the water, or launched upwards by a spring
 			if (onGround)
 			{
 				Mario.takeOff()
@@ -2415,7 +2440,7 @@ function void Mario.waterFrame()
 		Mario.moveInAir()
 
 		// Stay below the water surface
-		if (mario.action != MARIO_ACT_WATER_JUMP && (char.flags & char.flag.IN_AIR) && !global.inv_gravity)
+		if (!Mario.isWaterLaunch(mario.action) && (char.flags & char.flag.IN_AIR) && !global.inv_gravity)
 		{
 			if (float(s16(char.position.y.u16)) < mario.waterSurfaceY)
 			{

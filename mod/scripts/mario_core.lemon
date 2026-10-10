@@ -78,6 +78,7 @@ global s16 mario.setGs
 global float mario.posScale				// Pixels per SM64 unit
 global float mario.velScale				// S3K 8.8 velocity per SM64 unit/tick
 global float mario.impulseScale			// For converting S3K launch velocities (springs etc.)
+global u8 mario.waterBoostTimer			// After a spring under water: swimming speed may stay above the usual maximum for a while
 
 // Animation
 global u8 mario.anim
@@ -998,6 +999,8 @@ function void Mario.syncFromEngine(bool inAir)
 		if (changedX)
 		{
 			Mario.adoptEngineVelocityX()
+			if (Mario.isWaterAction(mario.action) && mario.fwd > 28.0f)
+				mario.waterBoostTimer = 30
 		}
 		if (changedY)
 		{
@@ -1037,7 +1040,15 @@ function void Mario.syncFromEngine(bool inAir)
 			mario.fwd = abs(Mario.fromEngine(char.groundspeed))
 			if (char.groundspeed != 0)
 				mario.yaw = (char.groundspeed < 0) ? -0x4000 : 0x4000
-			if (Mario.isGroundStationaryAction(mario.action))
+			if (Mario.isWaterAction(mario.action))
+			{
+				// Horizontal spring under water
+				mario.pitch = 0
+				mario.waterBoostTimer = 30
+				if (Mario.isStationaryWaterAction(mario.action))
+					Mario.setAction(MARIO_ACT_FLUTTER_KICK, 0)
+			}
+			else if (Mario.isGroundStationaryAction(mario.action))
 				Mario.setAction(MARIO_ACT_WALKING, 0)
 		}
 	}
