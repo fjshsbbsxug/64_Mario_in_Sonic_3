@@ -101,7 +101,14 @@ global s16 mario.wallBoostRealGs
 
 function bool Mario.isControlled()
 {
-	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC && !Mario.isSnowboarding() && !Mario.isOnHollowTree())
+	return (mario.active != 0 && A0 == 0xffffb000 && char.character == CHARACTER_SONIC && !Mario.isSnowboarding() && !Mario.isOnHollowTree() && !Mario.isInWaterCurrent())
+}
+
+
+// HCZ water currents (the tunnels that pull you along, with poles to grab): the game moves Mario there, like Sonic
+function bool Mario.isInWaterCurrent()
+{
+	return (global.zone == 0x01 && level.HCZ_water_current_flags.player1 != 0)
 }
 
 
@@ -1008,7 +1015,7 @@ function void Mario.syncFromEngine(bool inAir)
 // States that Mario's code sets; everything else is set by objects and left alone
 function bool Mario.isMarioOwnedState(u8 st)
 {
-	return (st == char.state.RUNNING || st == char.state.RUNNING2 || st == char.state.ROLLING || st == char.state.ROLLING2 || st == char.state.PUSHING || st == char.state.STANDING || st == char.state.BALANCING1 || st == char.state.BALANCING2 || st == char.state.LOOKING_UP || st == char.state.COWERING || st == char.state.SPINDASH || st == char.state.BRAKING || st == char.state.STRAIGHTJUMP || st == char.state.SONIC_DROPDASH || st == char.state.FALLING_PANIC || st == char.state.GOT_HURT_PANIC)
+	return (st == char.state.RUNNING || st == char.state.RUNNING2 || st == char.state.ROLLING || st == char.state.ROLLING2 || st == char.state.PUSHING || st == char.state.STANDING || st == char.state.BALANCING1 || st == char.state.BALANCING2 || st == char.state.LOOKING_UP || st == char.state.COWERING || st == char.state.SPINDASH || st == char.state.BRAKING || st == char.state.STRAIGHTJUMP || st == char.state.SONIC_DROPDASH || st == char.state.FALLING_PANIC || st == char.state.GOT_HURT_PANIC || st == char.state.GOT_HURT)
 }
 
 
