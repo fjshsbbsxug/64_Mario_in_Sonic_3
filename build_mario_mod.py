@@ -38,6 +38,7 @@ except ImportError:
     fail("Missing Python packages. Please run:\n\n    python -m pip install numpy pillow soundfile\n")
 
 import audio  # noqa: E402
+import extras  # noqa: E402
 import icons  # noqa: E402
 import model as mdl  # noqa: E402
 import rom as romdata  # noqa: E402
@@ -101,6 +102,8 @@ def build(rom_path, out_dir, install, voices, mods_dir=None):
                                          os.path.join(mod_dir, "scripts", "mario_animdata.lemon"), progress_bar)
     print("Creating icons...")
     icons.write_icons(head, portrait, sprites_dir, mod_dir)
+    print("Creating signpost, Blue Sphere, continue and ending sprites...")
+    extras.write_extras(model, anims, numpy.array(head), sprites_dir)
 
     if voices:
         encoder = audio.find_encoder()

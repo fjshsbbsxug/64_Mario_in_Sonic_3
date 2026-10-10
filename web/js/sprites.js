@@ -487,5 +487,5 @@ M64.sprites = (function()
 			arr("MarioAnim.NO_LOOP", "u8", noloop);
 	}
 
-	return { ANIMS, EXTRA, renderAll, renderSprite, toBytes };
+	return { ANIMS, EXTRA, renderAll, renderSprite, toBytes, trim, pack, sheetJson };
 })();

@@ -90,6 +90,7 @@ global u8 mario.wallBoost				// Velocity raised for breakable walls this frame (
 global s16 mario.wallBoostVx
 global u16 mario.updateFrame				// Frame counter of the last update of Mario's movement code
 global u16 mario.missedUpdates
+global u8 mario.loopAssist				// Running through a loop at full speed: keep the speed loops need
 global s16 mario.wallBoostRealVx
 global s16 mario.wallBoostRealGs
 
@@ -674,6 +675,25 @@ function void Mario.applyGroundMovement()
 		char.flags &= ~char.flag.PUSHING
 	}
 
+	// Too slow on a wall or ceiling (e.g. in a loop): lose contact and fall off, like Sonic
+	Character.UpdateGroundContact()
+	s8 signedRot = s8(char.rotation)
+
+	// Loops need Sonic's running speed; Mario at full running speed gets it (matters for the "Mario 64" world scale)
+	if (abs(signedRot) < 0x10)
+		mario.loopAssist = (mario.fwd >= 28.0f) ? 1 : 0
+	if (mario.loopAssist && abs(signedRot) >= 0x10 && abs(char.groundspeed) < 0x600 && char.groundspeed != 0)
+	{
+		char.groundspeed = (char.groundspeed < 0) ? -0x600 : 0x600
+		mario.fwd = max(mario.fwd, Mario.fromEngine(0x600))
+	}
+
+	if (abs(signedRot) >= 0x30 && abs(char.groundspeed) < 0x280)
+	{
+		// Also right after landing there (Sonic's check waits for its lock timer), so Mario can't stick to walls
+		char.flags |= char.flag.IN_AIR
+	}
+
 	// Movement, rotation and ground contact
 	Character.sharedUpdateOnGround()
 
@@ -789,6 +809,14 @@ function void Mario.moveInAir()
 	s16 vx = char.velocity.x
 	s16 vy = global.inv_gravity ? -char.velocity.y : char.velocity.y
 	Character.CheckCollision()
+
+	// Don't land on walls or ceilings too steep to stand on (e.g. falling off a loop): slide down instead
+	if ((char.flags & char.flag.IN_AIR) == 0 && abs(s8(char.rotation)) >= 0x30 && abs(char.groundspeed) < 0x280)
+	{
+		char.flags |= char.flag.IN_AIR
+		char.rotation = 0
+		mario.loopAssist = 0
+	}
 
 	if (char.flags & char.flag.IN_AIR)
 	{

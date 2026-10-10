@@ -16,7 +16,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
 SCRIPTS = ["vendor/WasmMediaEncoder.min.js", "js/util.js", "js/rom.js", "js/model.js",
-           "js/sprites.js", "js/icons.js", "js/audio.js", "js/build.js"]
+           "js/sprites.js", "js/icons.js", "js/extras.js", "js/audio.js", "js/build.js"]
 MARKER = "<!-- @BUNDLE -->"
 
 

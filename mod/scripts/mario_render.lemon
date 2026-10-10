@@ -104,8 +104,10 @@ function u8 Mario.getSpriteAngle()
 			target = rot
 	}
 
+	// Follow the ground quickly in loops, smoothly elsewhere
 	s8 diff = target - mario.drawAngle
-	mario.drawAngle += clamp(diff, -8, 8)
+	s8 step = (abs(target) > 0x20 || abs(mario.drawAngle) > 0x20) ? 0x20 : 8
+	mario.drawAngle += clamp(diff, -step, step)
 	return u8(mario.drawAngle)
 }
 
@@ -124,7 +126,7 @@ function void Mario.checkMovementCodeRunning()
 	if (mario.missedUpdates < 90)
 		return
 
-	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.8:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.3.0:", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)
@@ -227,4 +229,56 @@ function string getCharacterResultsNameplate(u8 character)
 	if (mario.active && character == CHARACTER_SONIC)
 		return "result_nameplate_mario"
 	return base.getCharacterResultsNameplate(character)
+}
+
+
+
+//-------------------------------------------------------//
+// Other character graphics                              //
+//-------------------------------------------------------//
+
+// The builder renders Mario versions of these (sprites/mario_extra.png), with the same frames as Sonic's
+
+function string getCharacterSignpostSpriteKey(u8 character)
+{
+	if (mario.active && character == CHARACTER_SONIC)
+		return "signpost_mario"
+	return base.getCharacterSignpostSpriteKey(character)
+}
+
+function string getCharacterEndPoseSpriteKey(u8 character, bool isSuperActive)
+{
+	if (mario.active && character == CHARACTER_SONIC && !isSuperActive)
+		return "endpose_mario"
+	return base.getCharacterEndPoseSpriteKey(character, isSuperActive)
+}
+
+function string getCharacterBluesphereSpriteKey(u8 character)
+{
+	if (mario.active && character == CHARACTER_SONIC)
+		return "bluesphere_mario"
+	return base.getCharacterBluesphereSpriteKey(character)
+}
+
+function string getCharacterTornadoSpriteKey(u8 character)
+{
+	if (mario.active && character == CHARACTER_SONIC)
+		return "tornado_mario"
+	return base.getCharacterTornadoSpriteKey(character)
+}
+
+function string getCharacterContinueIcon(u8 character)
+{
+	if (mario.active && character == CHARACTER_SONIC)
+		return "continue_icon_mario"
+	return base.getCharacterContinueIcon(character)
+}
+
+// Used for the continue screen ("<key>_continue_0x..") and the ending; other uses for Mario are handled above,
+// and keys that don't exist for Mario fall back to Sonic's graphics like before
+function string getCharacterSpriteKey(u8 character, bool isSuperActive)
+{
+	if (mario.active && character == CHARACTER_SONIC && !isSuperActive)
+		return "character_mario"
+	return base.getCharacterSpriteKey(character, isSuperActive)
 }

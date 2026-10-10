@@ -67,7 +67,7 @@ options, hold **Up** and press **Jump** in mid-air to call Tails; jump into him 
 hold Up to fly higher. Save slots remember the choice. Mario plays
 Sonic's route through the game, including the IceCap snowboard ride, where he rides his own
 red snowboard, and the hollow tree in Angel Island Act 1: walk into it at any speed and it carries
-Mario up around the trunk automatically.
+Mario up around the trunk automatically. Loops work at full running speed, like with Sonic.
 
 Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
 - **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" (and "Sonic & Tails") choice there play as Mario.
@@ -122,6 +122,7 @@ Super form.
 - `builder/rom.py` checks the ROM and reads Mario's data from it: the MIO0-compressed model segment, the animation table and the VADPCM voice samples (with a pure-Python decoder).
 - `builder/model.py` interprets the F3D display lists of Mario's high-poly model and rasterizes them with N64-style lighting and texturing.
 - `builder/sprites.py` renders about 450 frames of Mario's SM64 animations from a side view turned slightly towards the camera. It supersamples them 4×, then downsamples, quantizes them to a shared 5-bit-per-channel palette and packs them into a sprite sheet. It also writes the animation timing data (`mario_animdata.lemon`) for the scripts.
+- `builder/extras.py` renders Mario's signpost, end pose, Blue Sphere, continue screen and Tornado sprites.
 - `builder/icons.py` draws the HUD lives icon, the "MARIO" results nameplate, the Data Select portrait and the mod icons.
 - `builder/audio.py` writes the voice clips as Ogg Vorbis files (through the `soundfile` package, or `ffmpeg` if that's installed instead).
 - `mod/scripts/*.lemon` is the script part of the mod:
@@ -142,8 +143,9 @@ Release packaging:
 
 ## Known limitations
 
-- Some non-player graphics still show Sonic: the AIZ intro (Super Sonic), signposts, the
-  continue screen, Blue Sphere special stages, and the lives icons inside Data Select slots.
+- Mario has his own graphics for the signpost, the end pose after the credits, Blue Sphere
+  special stages, the continue screen and the Tornado. Still showing Sonic: the Super Sonic
+  in the AIZ intro, the lives icons inside Data Select save slots and the ending cutscenes.
 - Mario's sprites are true-color, so they are not tinted by underwater palettes.
 - Not available in Competition mode.
 - Only the USA version of Super Mario 64 is supported.

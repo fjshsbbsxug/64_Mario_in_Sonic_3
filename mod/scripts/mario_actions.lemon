@@ -384,6 +384,15 @@ function bool Mario.shouldBeginSliding()
 
 function void Mario.applySlopeAccel()
 {
+	s8 signedRot = s8(char.rotation)
+	if (abs(signedRot) >= 0x20)
+	{
+		// Walls and ceilings of loops: keep momentum like Sonic (his slope factor of 0x20 per frame, 2 frames per tick)
+		float slope = float(lookupSin(char.rotation)) * 0x20 / 256.0f * 2.0f / mario.velScale
+		mario.fwd += slope * float(Mario.faceSign())
+		mario.slideVel = mario.fwd * Mario.sins(mario.yaw)
+		return
+	}
 	if (Mario.floorIsSlope())
 	{
 		float slopeAccel = 1.7f * Mario.floorSteepness()

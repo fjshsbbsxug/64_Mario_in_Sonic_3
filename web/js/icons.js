@@ -376,5 +376,5 @@ M64.icons = (function()
 		return files;
 	}
 
-	return { makeIcons, makeLivesIcon, makeNameplate };
+	return { makeIcons, makeLivesIcon, makeNameplate, resizeLanczos };
 })();

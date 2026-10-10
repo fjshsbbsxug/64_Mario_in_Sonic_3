@@ -43,6 +43,9 @@ M64.build = (function()
 		log("Creating icons...");
 		const icons = await M64.icons.makeIcons(sprites.head, sprites.portrait);
 
+		log("Creating signpost, Blue Sphere, continue and ending sprites...");
+		const extras = await M64.extras.makeExtras(model, anims, sprites.head);
+
 		let voiceFiles = [];
 		let voices = options.voices !== false;
 		if (voices)
@@ -68,7 +71,7 @@ M64.build = (function()
 				content = disableVoices(content);
 			files.push([path, content]);
 		}
-		files.push(...sprites.files, ...icons, ...voiceFiles);
+		files.push(...sprites.files, ...icons, ...extras, ...voiceFiles);
 		files.sort((a, b) => (a[0] < b[0]) ? -1 : (a[0] > b[0]) ? 1 : 0);
 
 		log("Packing the mod...");
