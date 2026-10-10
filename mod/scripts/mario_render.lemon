@@ -124,7 +124,7 @@ function void Mario.checkMovementCodeRunning()
 	if (mario.missedUpdates < 90)
 		return
 
-	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.6:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.2.7:", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)

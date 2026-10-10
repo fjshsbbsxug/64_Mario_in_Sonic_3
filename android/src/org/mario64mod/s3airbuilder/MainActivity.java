@@ -149,7 +149,7 @@ public class MainActivity extends Activity
 		if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
 			installPending();
 		else
-			report(false, "No permission to access the storage. Use \"Save Mario64.zip\" instead.");
+			report(false, "No permission to access the storage. Use the Save button instead.");
 	}
 
 	@Override
@@ -197,24 +197,50 @@ public class MainActivity extends Activity
 			File base = new File(Environment.getExternalStorageDirectory(), "Android/data/org.eukaryot.sonic3air/files");
 			if (!base.isDirectory())
 			{
-				report(false, "Sonic 3 A.I.R. folder not found. Start the game once, then try again - or use \"Save Mario64.zip\".");
+				report(false, "Sonic 3 A.I.R. folder not found. Start the game once, then try again - or use the Save button.");
 				return;
 			}
 			File mods = new File(Environment.getExternalStorageDirectory(), S3AIR_MODS_FOLDER);
 			mods.mkdirs();
+
+			// Remove older copies of the mod, so the game can't keep using one of them
+			int removed = 0;
+			File[] existing = mods.listFiles();
+			if (existing != null)
+			{
+				for (File f : existing)
+				{
+					String n = f.getName().toLowerCase();
+					if (f.isFile() && n.startsWith("mario64") && n.endsWith(".zip") && !f.getName().equals(pendingName))
+						removed += f.delete() ? 1 : 0;
+					else if (f.isDirectory() && n.equals("mario64"))
+						removed += deleteRecursive(f) ? 1 : 0;
+				}
+			}
+
 			FileOutputStream out = new FileOutputStream(new File(mods, pendingName));
 			out.write(pendingData);
 			out.close();
-			String message = "Installed into " + S3AIR_MODS_FOLDER + ". Now enable \"Mario 64 (SM64 movement)\" in the game's Mods menu.";
-			if (new File(mods, "Mario64").isDirectory())
-				message += "\nAn older version is still in the folder " + S3AIR_MODS_FOLDER + "/Mario64 - delete it, or deactivate \"Mario 64\" in the Mods menu.";
+			String message = "Installed " + pendingName + " into " + S3AIR_MODS_FOLDER + ". Now enable \"Mario 64 (SM64 movement)\" in the game's Mods menu.";
+			if (removed > 0)
+				message += "\nRemoved " + removed + " older cop" + (removed == 1 ? "y" : "ies") + " of the mod.";
 			report(true, message);
 		}
 		catch (Exception e)
 		{
-			report(false, "Installing failed: " + e.getMessage() + "\nUse \"Save Mario64.zip\" instead.");
+			report(false, "Installing failed: " + e.getMessage() + "\nUse the Save button instead.");
 		}
 	}
+
+	private static boolean deleteRecursive(File f)
+	{
+		File[] children = f.listFiles();
+		if (children != null)
+			for (File c : children)
+				deleteRecursive(c);
+		return f.delete();
+	}
+
 
 	/** Functions the page can call (window.MarioBuilderApp) */
 	private class Bridge

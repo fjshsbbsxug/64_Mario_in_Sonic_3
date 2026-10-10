@@ -100,7 +100,7 @@ small { color: var(--muted); }
 
 	<div class="card">
 		<h2><span class="step">2</span>Build the mod</h2>
-		<button id="build" disabled>Build Mario64.zip</button>
+		<button id="build" disabled>Build the mod</button>
 		<div class="progress"><div id="bar"></div></div>
 		<div id="log"></div>
 		<div id="error" class="err"></div>
@@ -109,20 +109,26 @@ small { color: var(--muted); }
 	<div id="saveCard" class="card hidden">
 		<h2><span class="step">3</span>Install it</h2>
 		<p id="doneText" class="ok"></p>
+		<div class="card" style="margin:10px 0;border-color:var(--err)">
+			<b>Remove older versions first.</b> In the mods folder, delete every older Mario zip or folder
+			(<code>Mario64.zip</code>, <code>Mario64 (1).zip</code>, <code>Mario64-v….zip</code>, a <code>Mario64</code> folder).
+			Otherwise the game can keep using an old copy. In the game's <b>Mods</b> menu, the active one must say
+			<b>Mario 64 (SM64 movement) v<span class="ver"></span></b>.
+		</div>
 		<button id="install" class="hidden">Install into Sonic 3 A.I.R.</button>
-		<button id="save">Save Mario64.zip</button>
+		<button id="save">Save <span class="zipname">Mario64.zip</span></button>
 		<div id="saveResult"></div>
 		<div id="androidHelp">
-			<p>Then put <code>Mario64.zip</code> into the Sonic 3 A.I.R. mods folder:</p>
+			<p>Then put <code class="zipname">Mario64.zip</code> into the Sonic 3 A.I.R. mods folder:</p>
 			<p><code>Android/data/org.eukaryot.sonic3air/files/mods</code></p>
 			<ol>
 				<li>Start Sonic 3 A.I.R. once, so the folder exists.</li>
 				<li>Open a file manager that can access <code>Android/data</code>. On Android 11 and newer, the built-in one usually can't. Use one that can, like ZArchiver, or connect the phone to a PC.</li>
-				<li>Copy or move <code>Mario64.zip</code> into that <code>mods</code> folder. Leave it zipped.</li>
+				<li>Copy or move <code class="zipname">Mario64.zip</code> into that <code>mods</code> folder. Leave it zipped.</li>
 			</ol>
 		</div>
 		<div id="pcHelp" class="hidden">
-			<p>Put <code>Mario64.zip</code> into the <code>mods</code> folder of Sonic 3 A.I.R. (leave it zipped):</p>
+			<p>Put <code class="zipname">Mario64.zip</code> into the <code>mods</code> folder of Sonic 3 A.I.R. (leave it zipped):</p>
 			<ul>
 				<li>Windows: <code>%APPDATA%\Sonic3AIR\mods</code></li>
 				<li>Linux: <code>~/.local/share/Sonic3AIR/mods</code></li>
@@ -130,8 +136,7 @@ small { color: var(--muted); }
 				<li>Android: <code>Android/data/org.eukaryot.sonic3air/files/mods</code></li>
 			</ul>
 		</div>
-		<p>Then start the game, open <b>Mods</b> in the main menu and enable <b>Mario 64 (SM64 movement) v2.2.6</b>. Pick Mario in <b>Data Select</b>: he comes after Knuckles.</p>
-		<p><b>Installed an earlier version?</b> Delete the old <code>Mario64</code> folder from the mods folder, or deactivate the mod called just <b>Mario 64</b>. Otherwise the game keeps using the old Mario, who moves like Sonic.</p>
+		<p>Then start the game, open <b>Mods</b> in the main menu and enable <b>Mario 64 (SM64 movement) v2.2.7</b>. Pick Mario in <b>Data Select</b>: he comes after Knuckles.</p>
 	</div>
 
 	<p><small>Nothing is uploaded: the ROM is read and the mod is built entirely on this device. Super Mario 64 is a trademark of Nintendo; this is an unofficial fan mod and contains no Nintendo assets.</small></p>
@@ -149,6 +154,9 @@ small { color: var(--muted); }
 	let result = null;
 
 	$("version").textContent = "v" + (window.M64_VERSION || "?");
+	const zipName = "Mario64-v" + (window.M64_VERSION || "new") + ".zip";
+	document.querySelectorAll(".zipname").forEach(e => e.textContent = zipName);
+	document.querySelectorAll(".ver").forEach(e => e.textContent = window.M64_VERSION || "?");
 
 	// Show unexpected errors on the page, so they can be reported
 	window.addEventListener("error", e =>
@@ -238,7 +246,7 @@ small { color: var(--muted); }
 			if (missing.length)
 				throw new Error("The built mod is incomplete, missing: " + missing.join(", "));
 			log("Done in " + Math.round((Date.now() - start) / 1000) + " seconds.");
-			$("doneText").textContent = "Mario64.zip is ready (" + Math.round(result.zip.length / 1024) + " KB)" +
+			$("doneText").textContent = zipName + " is ready (" + Math.round(result.zip.length / 1024) + " KB)" +
 				(result.voices ? "." : ", without voice clips.");
 			$("install").classList.toggle("hidden", !(app && app.canInstallDirectly()));
 			$("saveCard").classList.remove("hidden");
@@ -266,13 +274,13 @@ small { color: var(--muted); }
 			return;
 		if (app)
 		{
-			app.saveFile("Mario64.zip", toBase64(result.zip));
+			app.saveFile(zipName, toBase64(result.zip));
 			return;
 		}
 		const url = URL.createObjectURL(new Blob([result.zip], { type: "application/zip" }));
 		const a = document.createElement("a");
 		a.href = url;
-		a.download = "Mario64.zip";
+		a.download = zipName;
 		document.body.appendChild(a);
 		a.click();
 		a.remove();
@@ -282,7 +290,7 @@ small { color: var(--muted); }
 	$("install").onclick = () =>
 	{
 		if (result && app)
-			app.installDirectly("Mario64.zip", toBase64(result.zip));
+			app.installDirectly(zipName, toBase64(result.zip));
 	};
 })();
 </script>

@@ -37,8 +37,8 @@ Command line options: `python build_mario_mod.py [ROM] [--out FOLDER] [--mods-di
 1. Install the APK. Your phone will ask you to allow installing apps from your browser or file manager.
 2. Open **Mario 64 Mod Builder**, tap **Choose ROM file** and pick your Super Mario 64 (USA) ROM.
 3. Tap **Build Mario64.zip**. It takes a few seconds up to about a minute, depending on the phone.
-4. Tap **Save Mario64.zip** and save it, e.g. to *Downloads*.
-5. Move `Mario64.zip` into the Sonic 3 A.I.R. mods folder, and leave it zipped:
+4. Tap **Save** and save `Mario64-v<version>.zip`, e.g. to *Downloads*.
+5. Delete any older Mario zips (`Mario64.zip`, `Mario64 (1).zip`, `Mario64-v….zip`) from the Sonic 3 A.I.R. mods folder, then move the new zip there, and leave it zipped:
    `Android/data/org.eukaryot.sonic3air/files/mods`
    (start Sonic 3 A.I.R. once first, so the folder exists).
    On Android 11 and newer, many file managers can't open `Android/data`. Use one that can

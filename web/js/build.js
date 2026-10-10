@@ -71,7 +71,7 @@ M64.build = (function()
 		files.push(...sprites.files, ...icons, ...voiceFiles);
 		files.sort((a, b) => (a[0] < b[0]) ? -1 : (a[0] > b[0]) ? 1 : 0);
 
-		log("Packing Mario64.zip...");
+		log("Packing the mod...");
 		const zip = M64.util.makeZip(files.map(([p, c]) => [MOD_FOLDER_NAME + "/" + p, c]));
 		return { zip: zip, files: files, voices: voices };
 	}
