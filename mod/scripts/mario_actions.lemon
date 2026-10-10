@@ -2117,8 +2117,11 @@ function bool Mario.checkWaterJump()
 {
 	if (mario.inAPressed)
 	{
-		bool atSurface = (float(s16(char.position.y.u16)) <= mario.waterSurfaceY + 1.0f)
-		if (atSurface && mario.pitch >= 0 && mario.inUp)
+		// Jump out at the surface (also from the floor in shallow water); holding Down keeps swimming
+		float y = float(s16(char.position.y.u16))
+		bool onGround = (char.flags & char.flag.IN_AIR) == 0
+		bool atSurface = (y <= mario.waterSurfaceY + 6.0f) || (onGround && y <= mario.waterSurfaceY + 28.0f)
+		if (atSurface && mario.pitch >= 0 && !mario.inZDown)
 		{
 			Mario.setAction(MARIO_ACT_WATER_JUMP, 0)
 			return true
@@ -2146,6 +2149,8 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_WATER_IDLE)
 	{
+		if (Mario.checkWaterJump())
+			return true
 		if (mario.inAPressed)
 		{
 			Mario.setAction(MARIO_ACT_BREASTSTROKE, 0)
@@ -2243,6 +2248,8 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_WATER_ACTION_END)
 	{
+		if (Mario.checkWaterJump())
+			return true
 		if (mario.inAPressed)
 		{
 			Mario.setAction(MARIO_ACT_BREASTSTROKE, 0)

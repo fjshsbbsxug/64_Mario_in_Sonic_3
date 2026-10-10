@@ -476,6 +476,44 @@ function void Character.UpdateSonicRollingInAir()
 }
 
 
+// Hitting a boss: Sonic 3 just reverses the character's velocity, which doesn't work well with Mario's moves
+// (e.g. a dive would continue backwards). Instead, Mario bounces up and away from the boss.
+//# address-hook(0x00ffd4) end(0x010214)
+function void Character.OnCollisionWithDynamicObject()
+{
+	bool isBoss = (mario.active && A0 == 0xffffb000 && (objA1.collision_attributes & collision_attributes.flags) == 0 && u8[A1 + 0x29] != 0)
+	u8 hitsBefore = u8[A1 + 0x29]
+	base.Character.OnCollisionWithDynamicObject()
+
+	if (isBoss && u8[A1 + 0x29] != hitsBefore)
+	{
+		Mario.bounceOffBoss(s16(char.position.x.u16 - objA1.position.x.u16))
+	}
+}
+
+
+function void Mario.bounceOffBoss(s16 dx)
+{
+	// Face the boss and bounce backwards, away from it
+	mario.yaw = (dx < 0) ? 0x4000 : -0x4000
+	mario.fwd = 0.0f - 16.0f
+	mario.velY = mario.inADown ? 52.0f : 42.0f
+	mario.jumpFlag = 0
+	Mario.setAction(MARIO_ACT_FREEFALL, 0)
+
+	char.flags |= char.flag.IN_AIR
+	char.flags &= ~(char.flag.PUSHING | char.flag.ON_OBJECT)
+	char.velocity.x = Mario.toEngine(mario.fwd * Mario.sins(mario.yaw))
+	s16 vy = -Mario.toEngine(mario.velY)
+	char.velocity.y = global.inv_gravity ? -vy : vy
+	char.groundspeed = char.velocity.x
+	mario.setVx = char.velocity.x
+	mario.setVy = char.velocity.y
+	mario.setGs = char.groundspeed
+	Mario.updateFacingFlag()
+}
+
+
 // With Tails as partner: Up + Jump in mid-air calls Tails to fly over and carry Mario ("Tails Assist" in the game options).
 // Sonic's mid-air moves are replaced, so this does the same check as Sonic's code. Returns true if Tails starts flying.
 function bool Mario.tryTailsAssist()
@@ -570,6 +608,12 @@ function void Mario.groundFrame()
 	{
 		Mario.waterFrame()
 		return
+	}
+
+	if (!mario.tick)
+	{
+		// Objects (springs, bosses...) may change the velocity on any frame, so check every frame
+		Mario.syncFromEngine(false)
 	}
 
 	if (mario.tick)
@@ -674,6 +718,12 @@ function void Mario.airFrame()
 	{
 		Mario.waterFrame()
 		return
+	}
+
+	if (!mario.tick)
+	{
+		// Objects (springs, bosses...) may change the velocity on any frame, so check every frame
+		Mario.syncFromEngine(true)
 	}
 
 	if (mario.tick)
@@ -1056,6 +1106,12 @@ function bool Mario.isAttacking()
 	if (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_GROUND_POUND || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_BUTT_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_STOMACH_SLIDE || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_FORCED_ROLL || act == MARIO_ACT_GROUND_POUND_LAND)
 	{
 		return true
+	}
+
+	// During boss fights, all of Mario's jumps hit the boss (like Sonic's spin jump)
+	if ((char.flags & char.flag.IN_AIR) && level.boss_encounter != 0)
+	{
+		return (act != MARIO_ACT_HURT && act != MARIO_ACT_SOFT_BONK && act != MARIO_ACT_BACKWARD_AIR_KB && act != MARIO_ACT_AIR_HIT_WALL)
 	}
 
 	// Jumping on enemies from above defeats them

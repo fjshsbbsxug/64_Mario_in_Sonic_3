@@ -102,10 +102,14 @@ A/B jump, X (Genesis C) attacks and Down crouches.
 | Jump Kick | **B** in mid-air while jumping slowly |
 | Ground Pound | **Z** in mid-air |
 | Crouch / crawl | Hold **Z** (and Left/Right to crawl) |
-| Swim | Underwater: Jump to swim a stroke, hold Jump to flutter kick, Up/Down to swim up/down. Jump at the surface to jump out |
+| Swim | Underwater: Jump to swim a stroke, hold Jump to flutter kick, Up/Down to swim up/down. Jump at the surface (or from the floor in shallow water) to jump out |
 
 Steep slopes make Mario slide like in SM64 (butt slide), and falling from high up makes him
 land with a short stun.
+
+Springs, bumpers and other objects launch Mario like Sonic. In boss fights, all of Mario's
+jumps hit the boss (like Sonic's spin jump), and every hit (stomp, kick, punch, dive, slide
+kick, ground pound) bounces him up and away from the boss.
 
 Mario defeats enemies by jumping on them or with his attacks: punches, kicks, dives, slides
 and the ground pound. Punches, kicks, dives and slides also break Sonic 3's breakable walls
