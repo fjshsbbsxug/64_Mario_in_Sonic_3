@@ -81,6 +81,7 @@ constant u8 MARIO_ACT_SWIMMING_END             = 102
 constant u8 MARIO_ACT_FLUTTER_KICK             = 103
 constant u8 MARIO_ACT_WATER_ACTION_END         = 104
 constant u8 MARIO_ACT_WATER_PLUNGE             = 105
+constant u8 MARIO_ACT_WATER_PUNCH              = 106
 
 
 function bool Mario.isAirAction(u8 act)
@@ -2147,8 +2148,41 @@ function bool Mario.executeWaterAction(u8 act)
 		return false
 	}
 
+	if (act == MARIO_ACT_WATER_PUNCH)
+	{
+		// SM64's act_water_punch
+		if (mario.fwd < 7.0f)
+			mario.fwd += 1.0f
+		if (mario.actionState == 0)
+		{
+			if (mario.actionTimer == 0)
+				Mario.voice("mario_punchyah")
+			++mario.actionTimer
+			Mario.setAnim(0xb0)
+			if (Mario.isAnimAtEnd())
+				mario.actionState = 1
+		}
+		else
+		{
+			Mario.setAnim(0xaf)
+			if (Mario.isAnimAtEnd())
+			{
+				Mario.setAction(MARIO_ACT_WATER_ACTION_END, 0)
+				return true
+			}
+		}
+		Mario.updateSwimmingYawAndPitch()
+		Mario.updateSwimmingSpeed(16.0f)
+		return false
+	}
+
 	if (act == MARIO_ACT_WATER_IDLE)
 	{
+		if (mario.inBPressed)
+		{
+			Mario.setAction(MARIO_ACT_WATER_PUNCH, 0)
+			return true
+		}
 		if (Mario.checkWaterJump())
 			return true
 		if (mario.inAPressed)
@@ -2164,6 +2198,11 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_BREASTSTROKE)
 	{
+		if (mario.inBPressed)
+		{
+			Mario.setAction(MARIO_ACT_WATER_PUNCH, 0)
+			return true
+		}
 		if (mario.actionArg == 0)
 			mario.swimStrength = 160
 
@@ -2202,6 +2241,11 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_SWIMMING_END)
 	{
+		if (mario.inBPressed)
+		{
+			Mario.setAction(MARIO_ACT_WATER_PUNCH, 0)
+			return true
+		}
 		if (mario.actionTimer >= 15)
 		{
 			Mario.setAction(MARIO_ACT_WATER_ACTION_END, 0)
@@ -2229,6 +2273,11 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_FLUTTER_KICK)
 	{
+		if (mario.inBPressed)
+		{
+			Mario.setAction(MARIO_ACT_WATER_PUNCH, 0)
+			return true
+		}
 		if (!mario.inADown)
 		{
 			if (mario.actionTimer == 0 && mario.swimStrength < 280)
@@ -2248,6 +2297,11 @@ function bool Mario.executeWaterAction(u8 act)
 
 	if (act == MARIO_ACT_WATER_ACTION_END)
 	{
+		if (mario.inBPressed)
+		{
+			Mario.setAction(MARIO_ACT_WATER_PUNCH, 0)
+			return true
+		}
 		if (Mario.checkWaterJump())
 			return true
 		if (mario.inAPressed)

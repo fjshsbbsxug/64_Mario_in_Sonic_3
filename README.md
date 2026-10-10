@@ -103,6 +103,7 @@ A/B jump, X (Genesis C) attacks and Down crouches.
 | Ground Pound | **Z** in mid-air |
 | Crouch / crawl | Hold **Z** (and Left/Right to crawl) |
 | Swim | Underwater: Jump to swim a stroke, hold Jump to flutter kick, Up/Down to swim up/down. Jump at the surface (or from the floor in shallow water) to jump out |
+| Water punch | **B** while swimming (defeats enemies and breaks walls underwater) |
 
 Steep slopes make Mario slide like in SM64 (butt slide), and falling from high up makes him
 land with a short stun.

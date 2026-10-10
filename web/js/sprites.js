@@ -50,6 +50,7 @@ M64.sprites = (function()
 		[0x35, 9, OPEN], [0x0D, 28, OPEN], [0x94, 1, OPEN],   // hang on ceiling, idle on pole, twirl
 		[0x2B, 10, OPEN], [0x2D, 1, OPEN], [0x58, 5, OPEN],   // hanging on owl (carried), air forward kb, being grabbed
 		[0xAA, 3, OPEN], [0xAB, 2, OPEN], [0xAC, 4, OPEN], [0xB2, 5, OPEN], [0xAD, 5, OPEN],  // swimming
+		[0xB0, 1, OPEN], [0xAF, 3, OPEN],                     // water punch
 	];
 
 	// Extra sprite sets with ids that don't exist in SM64: [id, anim id, frames, options]

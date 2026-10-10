@@ -1061,7 +1061,7 @@ function void Mario.updateEngineState()
 function void Mario.applyWallBoost()
 {
 	u8 act = mario.action
-	bool strong = (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING)
+	bool strong = (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING || act == MARIO_ACT_WATER_PUNCH)
 	if (!strong || char.state != char.state.ROLLING)
 		return
 
@@ -1103,7 +1103,7 @@ function void Mario.undoWallBoost()
 function bool Mario.isAttacking()
 {
 	u8 act = mario.action
-	if (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_GROUND_POUND || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_BUTT_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_STOMACH_SLIDE || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_FORCED_ROLL || act == MARIO_ACT_GROUND_POUND_LAND)
+	if (act == MARIO_ACT_DIVE || act == MARIO_ACT_JUMP_KICK || act == MARIO_ACT_GROUND_POUND || act == MARIO_ACT_SLIDE_KICK || act == MARIO_ACT_PUNCHING || act == MARIO_ACT_MOVE_PUNCHING || act == MARIO_ACT_CROUCH_SLIDE || act == MARIO_ACT_BUTT_SLIDE || act == MARIO_ACT_DIVE_SLIDE || act == MARIO_ACT_STOMACH_SLIDE || act == MARIO_ACT_SLIDE_KICK_SLIDE || act == MARIO_ACT_FORCED_ROLL || act == MARIO_ACT_GROUND_POUND_LAND || act == MARIO_ACT_WATER_PUNCH)
 	{
 		return true
 	}
