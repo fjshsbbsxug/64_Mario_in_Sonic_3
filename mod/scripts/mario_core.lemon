@@ -90,6 +90,7 @@ global u8 mario.wallBoost				// Velocity raised for breakable walls this frame (
 global s16 mario.wallBoostVx
 global u16 mario.updateFrame				// Frame counter of the last update of Mario's movement code
 global u16 mario.missedUpdates
+global float mario.loopSpeed				// Speed when entering a loop, kept while on its walls and ceiling
 global u8 mario.loopAssist				// Running through a loop at full speed: keep the speed loops need
 global s16 mario.wallBoostRealVx
 global s16 mario.wallBoostRealGs
@@ -453,6 +454,7 @@ function void Character.UpdateSonicRollingOnGround()
 	mario.fwd = abs(Mario.fromEngine(char.groundspeed))
 	mario.yaw = (char.groundspeed < 0) ? -0x4000 : 0x4000
 	mario.velY = 0.0f
+	Mario.setAnim(0x6f)		// Forced to roll (e.g. in tubes): SM64's forward somersault
 	mario.setGs = char.groundspeed
 	mario.setVx = char.velocity.x
 	mario.setVy = char.velocity.y
@@ -656,6 +658,13 @@ function void Mario.groundFrame()
 function void Mario.applyGroundMovement()
 {
 	mario.velY = 0.0f
+
+	// Loops: Mario keeps the speed he entered with while running on walls and ceilings
+	if (abs(s8(char.rotation)) < 0x20)
+		mario.loopSpeed = mario.fwd
+	else if (mario.loopSpeed >= 16.0f && mario.fwd > 0.0f && !Mario.isGroundStationaryAction(mario.action))
+		mario.fwd = mario.loopSpeed
+
 	s16 gs = Mario.toEngine(mario.fwd * Mario.sins(mario.yaw))
 	char.groundspeed = gs
 	Mario.updateFacingFlag()

@@ -65,7 +65,7 @@ ANIMS = [
 EXTRA = [
     (0xE0, 0x02, [4], dict(eyes="dead", lhand="open", rhand="open", yaw=8)),      # death
     (0xE1, 0xA5, [20], dict(eyes="dead", lhand="open", rhand="open", yaw=20)),    # drowned
-    (0xE2, 0xC5, [0], dict(eyes="closed")),                                       # idle blink
+    (0xE2, 0xC5, [10], dict(eyes="closed")),                                       # idle blink
     (0xE3, 0x02, [4], dict(eyes="half", lhand="open", rhand="open")),             # hurt
 ]
 
@@ -104,6 +104,15 @@ def tree_sprite_jobs(anims):
         for f in range(TREE_FRAMES):
             jobs.append(("mario_tree_%d_%d" % (d, f), TREE_ANIM, f * loop_end // TREE_FRAMES, {"yaw": YAW + 45 + d * 45}))
     return jobs
+
+
+# Twirling (HCZ fans, updrafts and the like): Mario's twirl pose turning around ("mario_twirl_<n>")
+TWIRL_FRAMES = 8
+TWIRL_ANIM = 0x94
+
+
+def twirl_sprite_jobs():
+    return [("mario_twirl_%d" % i, TWIRL_ANIM, 0, dict(OPEN, yaw=YAW + i * 360 // TWIRL_FRAMES)) for i in range(TWIRL_FRAMES)]
 
 
 SNOWBOARD_CANVAS = 96
@@ -264,6 +273,7 @@ def render_all(model, anims, outdir, script_path, progress=None):
         for i, f in enumerate(frames):
             jobs.append(("mario_%02x_%d" % (xid, i), aid, f, opts))
     jobs += tree_sprite_jobs(anims)
+    jobs += twirl_sprite_jobs()
 
     rendered = []
     for key, aid, f, opts in jobs:

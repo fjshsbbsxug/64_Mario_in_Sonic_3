@@ -67,7 +67,7 @@ options, hold **Up** and press **Jump** in mid-air to call Tails; jump into him 
 hold Up to fly higher. Save slots remember the choice. Mario plays
 Sonic's route through the game, including the IceCap snowboard ride, where he rides his own
 red snowboard, and the hollow tree in Angel Island Act 1: walk into it at any speed and it carries
-Mario up around the trunk automatically. Loops work at full running speed, like with Sonic.
+Mario up around the trunk automatically. Loops work at full running speed, like with Sonic, and Mario keeps his speed all the way around. On poles, vines, zip lines and bars he uses his own grabbing, hanging and swinging poses.
 
 Mod settings (**Options → Mods → Mario 64 (SM64 movement)**):
 - **Mario replaces Sonic**: "Also in Act Select & Time Attack" makes the "Sonic" (and "Sonic & Tails") choice there play as Mario.

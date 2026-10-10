@@ -57,7 +57,7 @@ M64.sprites = (function()
 	const EXTRA = [
 		[0xE0, 0x02, [4], { eyes: "dead", lhand: "open", rhand: "open", yaw: 8 }],      // death
 		[0xE1, 0xA5, [20], { eyes: "dead", lhand: "open", rhand: "open", yaw: 20 }],    // drowned
-		[0xE2, 0xC5, [0], { eyes: "closed" }],                                          // idle blink
+		[0xE2, 0xC5, [10], { eyes: "closed" }],                                          // idle blink
 		[0xE3, 0x02, [4], { eyes: "half", lhand: "open", rhand: "open" }],              // hurt
 	];
 
@@ -94,6 +94,18 @@ M64.sprites = (function()
 		for (let d = 0; d < TREE_DIRECTIONS; ++d)
 			for (let f = 0; f < TREE_FRAMES; ++f)
 				jobs.push(["mario_tree_" + d + "_" + f, TREE_ANIM, Math.floor(f * loopEnd / TREE_FRAMES), { yaw: YAW + 45 + d * 45 }]);
+		return jobs;
+	}
+
+	// Twirling (HCZ fans, updrafts and the like): Mario's twirl pose turning around ("mario_twirl_<n>")
+	const TWIRL_FRAMES = 8;
+	const TWIRL_ANIM = 0x94;
+
+	function twirlSpriteJobs()
+	{
+		const jobs = [];
+		for (let i = 0; i < TWIRL_FRAMES; ++i)
+			jobs.push(["mario_twirl_" + i, TWIRL_ANIM, 0, Object.assign({}, OPEN, { yaw: YAW + Math.floor(i * 360 / TWIRL_FRAMES) })]);
 		return jobs;
 	}
 
@@ -406,6 +418,7 @@ M64.sprites = (function()
 		for (const [xid, aid, frames, opts] of EXTRA)
 			frames.forEach((f, i) => jobs.push(["mario_" + hex2(xid) + "_" + i, aid, f, opts]));
 		jobs.push(...treeSpriteJobs(anims));
+		jobs.push(...twirlSpriteJobs());
 
 		const rendered = [];
 		for (const [key, aid, f, opts] of jobs)

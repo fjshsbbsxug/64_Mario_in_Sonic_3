@@ -387,9 +387,7 @@ function void Mario.applySlopeAccel()
 	s8 signedRot = s8(char.rotation)
 	if (abs(signedRot) >= 0x20)
 	{
-		// Walls and ceilings of loops: keep momentum like Sonic (his slope factor of 0x20 per frame, 2 frames per tick)
-		float slope = float(lookupSin(char.rotation)) * 0x20 / 256.0f * 2.0f / mario.velScale
-		mario.fwd += slope * float(Mario.faceSign())
+		// Walls and ceilings of loops: Mario keeps his speed (see Mario.applyGroundMovement)
 		mario.slideVel = mario.fwd * Mario.sins(mario.yaw)
 		return
 	}
@@ -668,7 +666,8 @@ function bool Mario.actIdle()
 	if (mario.actionState >= 3)
 		mario.actionState = 0
 	Mario.setForwardVel(0.0f)
-	Mario.setAnim((mario.actionState == 0) ? 0xc3 : (mario.actionState == 1) ? 0xc4 : 0xc5)
+	// Standing animation without SM64's looking left and right, which turns his head away from the 2D view
+	Mario.setAnim(0xc5)
 	if (Mario.isAnimAtEnd())
 	{
 		++mario.actionState
@@ -1117,6 +1116,12 @@ function bool Mario.actWalking()
 	{
 		Mario.setAction(MARIO_ACT_CROUCH_SLIDE, 0)
 		return true
+	}
+	if (Mario.analogStickHeldBack())
+	{
+		// Slow: turn around instantly, like a 2D character (SM64 would turn him gradually in 3D)
+		mario.yaw = mario.intendedYaw
+		mario.fwd = 0.0f
 	}
 
 	mario.actionState = 0

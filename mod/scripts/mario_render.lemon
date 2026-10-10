@@ -33,6 +33,25 @@ function u64 Mario.loopingSpriteKey(u8 anim, u8 speedShift)
 }
 
 
+// Swinging all the way around a vine or bar (Sonic's sprites 0x78 - 0x7f)
+function bool Mario.isSwingingAround()
+{
+	return (char.control_flags & control_flag.DISABLE_ANIMATION) != 0 && char.animation.sprite >= 0x78 && char.animation.sprite <= 0x7f
+}
+
+
+// Hanging from something by the hands
+function bool Mario.isHanging()
+{
+	if (char.state == char.state.HANGING || char.state == char.state.SONIC_HANGON)
+		return true
+	if ((char.control_flags & control_flag.DISABLE_ANIMATION) == 0)
+		return false
+	u8 spr = char.animation.sprite
+	return (spr >= 0x90 && spr <= 0x95) || (spr >= 0x80 && spr <= 0x85) || (spr >= 0x63 && spr <= 0x68)
+}
+
+
 function u64 Mario.getSpriteKey()
 {
 	u8 st = char.state
@@ -51,7 +70,17 @@ function u64 Mario.getSpriteKey()
 	if (st == char.state.LIFTED && Mario.isInWaterCurrent())
 		return Mario.loopingSpriteKey(0xac, 0)		// Swept along by the water: flutter kick
 	if (st == char.state.TRANSFORMING || st == char.state.LIFTED)
-		return Mario.spriteKey(0x94, 0)
+		return stringformat("mario_twirl_%d", (level.framecounter >> 1) & 7)		// Twirling around
+
+	// Sprites that objects set directly: vines and zip lines (AIZ), bars, monkey bars, conveyor belts
+	if (char.control_flags & control_flag.DISABLE_ANIMATION)
+	{
+		if (Mario.isSwingingAround())
+			return Mario.spriteKey(0x35, 0)		// Drawn rotated, like Sonic
+		u8 spr = char.animation.sprite
+		if ((spr >= 0x90 && spr <= 0x95) || (spr >= 0x80 && spr <= 0x85) || (spr >= 0x63 && spr <= 0x68))
+			return Mario.loopingSpriteKey(0x35, 1)
+	}
 	if (st == char.state.WIN_POSE)
 	{
 		++mario.winTimer
@@ -84,7 +113,10 @@ function u64 Mario.getSpriteKey()
 	u8 anim = mario.anim
 	if ((anim == 0xc3 || anim == 0xc4 || anim == 0xc5) && (level.framecounter & 0x7f) >= 0x7a)
 		return Mario.spriteKey(MARIO_SPRITES_BLINK, 0)
-	return Mario.spriteKey(anim, Mario.toInt(mario.animFrame))
+	s32 frame = Mario.toInt(mario.animFrame)
+	if (anim == 0xc5)
+		frame = max(frame, 10)		// Idle: skip the frames where Mario looks at the camera, so he stays in side view
+	return Mario.spriteKey(anim, frame)
 }
 
 
@@ -126,7 +158,7 @@ function void Mario.checkMovementCodeRunning()
 	if (mario.missedUpdates < 90)
 		return
 
-	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.3.0:", 0xff4040ff, 1, 0, 0xf000, false, true)
+	Renderer.drawText("oxyfont_regular", 8, 8, "Mario 64 mod v2.3.1:", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 18, "Mario's movement code isn't running.", 0xff4040ff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 30, "Another copy of the mod may be active:", 0xffffffff, 1, 0, 0xf000, false, true)
 	Renderer.drawText("oxyfont_regular", 8, 40, "in Mods, keep only this version active", 0xffffffff, 1, 0, 0xf000, false, true)
@@ -166,6 +198,23 @@ function bool Standalone.drawCharacterSprite(u8 character, u8 variant, s16 px, s
 	Mario.checkMovementCodeRunning()
 
 	u8 angle = Mario.getSpriteAngle()
+	if (Mario.isSwingingAround())
+	{
+		// Same rotation as Sonic's swinging sprite
+		flags = (char.flags & char.flag.FACING_LEFT) ? SPRITE_FLAG_FLIP_X : 0
+		angle = char.rotation
+		mario.drawAngle = s8(angle)
+	}
+	else if (char.state == char.state.HOLDING_ON)
+	{
+		// Holding a pole: face the pole and reach it with the hands (the pole is on the side Sonic's sprite faces)
+		flags ^= SPRITE_FLAG_FLIP_X
+		px += (flags & SPRITE_FLAG_FLIP_X) ? -12 : 12
+	}
+	else if (Mario.isHanging())
+	{
+		py -= 3		// Hands up at the bar, like Sonic's
+	}
 	u16 renderQueue = 0xa000 - char.sprite_priority
 
 	if (asSmallGhost)
